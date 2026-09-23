@@ -1,0 +1,25 @@
+[changelog]
+header = "# Changelog\n\nNotable changes to brightflare and brightflare Admin.\n"
+body = """
+## {% if version %}{{ version }}{% else %}Unreleased{% endif %} · {{ timestamp | date(format="%Y-%m-%d") }}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | trim }}
+{% for commit in commits %}- {{ commit.message | upper_first }}
+{% endfor %}
+{% endfor %}
+"""
+trim = true
+render_always = true
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+commit_parsers = [
+  { message = "^feat", group = "Features" },
+  { message = "^fix", group = "Fixes" },
+  { message = "^docs", group = "Documentation" },
+  { message = "^test", group = "Verification" },
+  { message = "^chore", skip = true },
+]
+filter_commits = true
+sort_commits = "newest"

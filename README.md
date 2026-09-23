@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# brightflare
 
-## Getting Started
+A calmer front desk for childcare families, with a companion workspace for center staff. Built as a Brightwheel take-home prototype around one loop: **families ask → the center sees demand → staff publish an approved answer → future families find it immediately.**
 
-First, run the development server:
+## What works
+
+- **Parent desk:** up to six prominent FAQs with one-sentence answers, full sourced answers, and text questions grounded in the active center handbook.
+- **Time-aware knowledge:** staff can feature FAQs and set start/end dates for seasonal information. Expired entries leave the parent experience automatically.
+- **Demand inbox:** public questions become de-identified topics with question and anonymous-session counts. Missing answers and answers needing review are called out.
+- **Staff workflow:** approve a sourced handbook entry from a topic, including its parent-facing title, short answer, source label, and visibility dates. Published content immediately becomes searchable and can resolve the topic.
+- **Admin assistant:** Vercel AI SDK tools retrieve current handbook entries, grouped questions, and prior-year seasonal demand to suggest titles, answer drafts, and timely FAQ ideas. Staff review all suggestions before publishing.
+- **Private child path:** a demo family PIN gates fictional teacher-message search through `@child`. Child-specific questions are excluded from public topic analytics, and the answer clears from the shared screen after 30 seconds or when the tab is hidden.
+
+The prototype uses **Little Lantern Learning Center**, a fictional center with seeded handbook entries, dated center updates, historical question counts, and one fictional child. It does not connect to Brightwheel's private APIs or use real family data. Audio is a stretch goal.
+
+## Demo access
+
+- Staff: `/admin`, PIN `2468`
+- Family child search: choose **Ask about my child**, enter `Mia Carter` and PIN `1357`
+
+These are intentionally simple **fictional demo credentials**, not a production authentication scheme.
+
+## Run locally
+
+Use Node.js 22+ and pnpm. Set `NEXT_PUBLIC_CONVEX_URL`, `BRIGHTFLARE_SERVER_SECRET`, `BRIGHTFLARE_SESSION_SECRET`, `BRIGHTFLARE_ADMIN_PIN`, and `BRIGHTFLARE_FAMILY_PIN` in `.env.local`. Set `GOOGLE_GENERATIVE_AI_API_KEY` for a direct Gemini connection, or use Vercel AI Gateway credentials. Direct Google uses `gemini-3.5-flash-lite` by default; AI Gateway uses `gemini-2.5-flash-lite`. `GEMINI_MODEL_ID` overrides either default.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
+pnpm test
+pnpm typecheck
+pnpm build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Convex function definitions and the fictional seed live in `convex/`. The seed is an internal mutation named `brightflare:seedLittleLantern` and is idempotent. See `CHANGELOG.md` for delivered feature increments.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Design choices
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The center handbook and dated staff updates are the only sources for generated answers. A model response must cite IDs from the retrieved records; if it cannot, the parent sees a staff handoff. Staff, not the model, decide what becomes authoritative. Public question tracking stores a general topic and anonymous session key rather than raw child-specific text.
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The UI starts from the ShadCN `b6a2WHJ20` preset and adapts rounded Neubrutalism details from the Brightflare logo: flat blue, teal, amber, and pink accents, dark outlines, and crisp offset shadows. Answers and sources stay on calm white surfaces for readability.
