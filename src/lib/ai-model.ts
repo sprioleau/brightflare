@@ -25,5 +25,5 @@ export function getGeminiOverloadFallbackModel() {
 }
 
 export function isGeminiOverloaded(error: unknown): boolean {
-  return error instanceof Error && /high demand|overloaded|resource exhausted|rate limit/i.test(error.message);
+  return error instanceof Error && /high demand|overloaded|resource exhausted|rate limit|quota exceeded/i.test(error.message);
 }

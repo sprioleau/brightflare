@@ -33,6 +33,7 @@ describe("Gemini model configuration", () => {
 
     expect(getGeminiOverloadFallbackModel()?.modelId).toBe("gemini-3.5-flash-lite");
     expect(isGeminiOverloaded(new Error("This model is currently experiencing high demand"))).toBe(true);
+    expect(isGeminiOverloaded(new Error("You exceeded your current quota. Quota exceeded for metric: generate_content_free_tier_requests"))).toBe(true);
     expect(isGeminiOverloaded(new Error("Invalid API key"))).toBe(false);
   });
 });

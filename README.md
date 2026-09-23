@@ -22,7 +22,7 @@ These are intentionally simple **fictional demo credentials**, not a production 
 
 ## Run locally
 
-Use Node.js 22+ and pnpm. Set `NEXT_PUBLIC_CONVEX_URL`, `BRIGHTFLARE_SERVER_SECRET`, `BRIGHTFLARE_SESSION_SECRET`, `BRIGHTFLARE_ADMIN_PIN`, and `BRIGHTFLARE_FAMILY_PIN` in `.env.local`. Set `GOOGLE_GENERATIVE_AI_API_KEY` for a direct Gemini connection, or use Vercel AI Gateway credentials. Both paths default to `gemini-3.6-flash`; `GEMINI_MODEL_ID` overrides the model. Parent answers fall back to Gemini 3.5 Flash Lite only when 3.6 reports overload. The staff dashboard shows a time-ordered stream of parent questions, groups related public questions into topics, and keeps private child question wording out of the stream.
+Use Node.js 22+ and pnpm. Set `NEXT_PUBLIC_CONVEX_URL`, `BRIGHTFLARE_SERVER_SECRET`, `BRIGHTFLARE_SESSION_SECRET`, `BRIGHTFLARE_ADMIN_PIN`, and `BRIGHTFLARE_FAMILY_PIN` in `.env.local`. Set `GOOGLE_GENERATIVE_AI_API_KEY` for a direct Gemini connection, or use Vercel AI Gateway credentials. Both paths default to `gemini-3.6-flash`; `GEMINI_MODEL_ID` overrides the model. Parent answers fall back to Gemini 3.5 Flash Lite when 3.6 reports overload or a model-specific quota limit. The staff dashboard shows a time-ordered stream of parent questions, groups related public questions into topics, and keeps private child question wording out of the stream.
 
 ```bash
 pnpm install
