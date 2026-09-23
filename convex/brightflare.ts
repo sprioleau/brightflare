@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 
@@ -86,6 +87,11 @@ export const getAdmin = query({
       sessionCount: v.number(), status: topicStatus, recentExamples: v.array(v.string()),
       lastAskedAt: v.number(), knowledgeId: v.union(v.id("knowledge"), v.null()),
     })),
+    recentQuestions: v.array(v.object({
+      id: v.id("questionEvents"), question: v.string(), topicId: v.union(v.id("topics"), v.null()), topicTitle: v.union(v.string(), v.null()),
+      askedAt: v.number(), outcome: v.union(v.literal("answered"), v.literal("needs_staff")),
+      sourceStatus: v.union(v.literal("sourced"), v.literal("unsourced")), isPrivate: v.boolean(),
+    })),
   }),
   handler: async (ctx, args) => {
     assertServerSecret(args.secret);
@@ -109,6 +115,17 @@ export const getAdmin = query({
     const handledTopics = await ctx.db.query("topics")
       .withIndex("by_center_and_status_and_last_asked", (q) => q.eq("centerId", center._id).eq("status", "handled_by_staff"))
       .order("desc").take(50);
+    const questionEvents = await ctx.db.query("questionEvents")
+      .withIndex("by_center_and_asked_at", (q) => q.eq("centerId", center._id))
+      .order("desc").take(50);
+    const recentQuestions = await Promise.all(questionEvents.map(async (event) => {
+      const topic = event.topicId ? await ctx.db.get(event.topicId) : null;
+      return {
+        id: event._id, question: event.redactedQuestion, topicId: event.topicId ?? null,
+        topicTitle: topic?.canonicalTitle ?? null, askedAt: event.askedAt, outcome: event.outcome,
+        sourceStatus: event.sourceStatus, isPrivate: event.isPrivate,
+      };
+    }));
     return {
       center: { id: center._id, name: center.name, handbookLabel: center.handbookLabel },
       knowledge: [...knowledge, ...drafts].map((entry) => ({
@@ -121,7 +138,38 @@ export const getAdmin = query({
         questionCount: topic.questionCount, sessionCount: topic.sessionCount, status: topic.status,
         recentExamples: topic.recentExamples, lastAskedAt: topic.lastAskedAt, knowledgeId: topic.knowledgeId ?? null,
       })),
+      recentQuestions: recentQuestions.filter((event) => event !== null),
     };
+  },
+});
+
+export const getAdminQuestionEvents = query({
+  args: { secret: v.string(), centerSlug: v.string(), paginationOpts: paginationOptsValidator },
+  returns: v.object({
+    page: v.array(v.object({
+      id: v.id("questionEvents"), question: v.string(), topicId: v.union(v.id("topics"), v.null()),
+      topicTitle: v.union(v.string(), v.null()), askedAt: v.number(),
+      outcome: v.union(v.literal("answered"), v.literal("needs_staff")),
+      sourceStatus: v.union(v.literal("sourced"), v.literal("unsourced")), isPrivate: v.boolean(),
+    })),
+    isDone: v.boolean(), continueCursor: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    assertServerSecret(args.secret);
+    const center = await ctx.db.query("centers").withIndex("by_slug", (q) => q.eq("slug", args.centerSlug)).unique();
+    if (!center) throw new Error("Center not found");
+    const result = await ctx.db.query("questionEvents")
+      .withIndex("by_center_and_asked_at", (q) => q.eq("centerId", center._id))
+      .order("desc").paginate(args.paginationOpts);
+    const page = await Promise.all(result.page.map(async (event) => {
+      const topic = event.topicId ? await ctx.db.get(event.topicId) : null;
+      return {
+        id: event._id, question: event.redactedQuestion, topicId: event.topicId ?? null,
+        topicTitle: topic?.canonicalTitle ?? null, askedAt: event.askedAt, outcome: event.outcome,
+        sourceStatus: event.sourceStatus, isPrivate: event.isPrivate,
+      };
+    }));
+    return { page, isDone: result.isDone, continueCursor: result.continueCursor };
   },
 });
 
@@ -223,18 +271,26 @@ export const upsertKnowledge = mutation({
 export const recordQuestion = mutation({
   args: {
     secret: v.string(), centerSlug: v.string(), canonicalTitle: v.string(), canonicalKey: v.string(),
-    sessionKey: v.string(), redactedExample: v.string(), hasRelevantKnowledge: v.boolean(),
+    sessionKey: v.string(), redactedExample: v.string(), question: v.string(), hasRelevantKnowledge: v.boolean(),
+    outcome: v.union(v.literal("answered"), v.literal("needs_staff")),
+    sourceStatus: v.union(v.literal("sourced"), v.literal("unsourced")),
   },
   returns: v.object({ topicId: v.id("topics"), questionCount: v.number(), sessionCount: v.number(), status: topicStatus }),
   handler: async (ctx, args) => {
     assertServerSecret(args.secret);
-    if (args.canonicalTitle.length > 100 || args.canonicalKey.length > 120 || args.redactedExample.length > 180 || args.sessionKey.length > 80) {
+    if (args.canonicalTitle.length > 100 || args.canonicalKey.length > 120 || args.redactedExample.length > 180 || args.sessionKey.length > 80 || args.question.length > 500) {
       throw new Error("Question metadata is too long");
     }
     const center = await ctx.db.query("centers").withIndex("by_slug", (q) => q.eq("slug", args.centerSlug)).unique();
     if (!center) throw new Error("Center not found");
     const topic = await ctx.db.query("topics").withIndex("by_center_and_key", (q) => q.eq("centerId", center._id).eq("canonicalKey", args.canonicalKey)).unique();
     const now = Date.now();
+    const redactedQuestion = args.question
+      .replace(/\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g, "[email]")
+      .replace(/\b(?:\+?\d[\d(). -]{7,}\d)\b/g, "[phone]")
+      .replace(/\b\d{1,4}\b/g, "[number]")
+      .replace(/\s+/g, " ").trim().slice(0, 180);
+    if (!redactedQuestion) throw new Error("Question text is required");
     if (!topic) {
       const sessionCount = 1;
       const status = args.hasRelevantKnowledge ? "needs_review" as const : "needs_answer" as const;
@@ -243,6 +299,10 @@ export const recordQuestion = mutation({
         questionCount: 1, sessionCount, status, recentExamples: [args.redactedExample], lastAskedAt: now,
       });
       await ctx.db.insert("questionSessions", { topicId, sessionKey: args.sessionKey });
+      await ctx.db.insert("questionEvents", {
+        centerId: center._id, topicId, redactedQuestion, askedAt: now,
+        outcome: args.outcome, sourceStatus: args.sourceStatus, isPrivate: false,
+      });
       return { topicId, questionCount: 1, sessionCount, status };
     }
     const priorSession = await ctx.db.query("questionSessions")
@@ -254,7 +314,30 @@ export const recordQuestion = mutation({
     const recentExamples = [args.redactedExample, ...topic.recentExamples].filter((example, index, all) => all.indexOf(example) === index).slice(0, 3);
     await ctx.db.patch(topic._id, { questionCount, sessionCount, status, recentExamples, lastAskedAt: now });
     if (!priorSession) await ctx.db.insert("questionSessions", { topicId: topic._id, sessionKey: args.sessionKey });
+    await ctx.db.insert("questionEvents", {
+      centerId: center._id, topicId: topic._id, redactedQuestion, askedAt: now,
+      outcome: args.outcome, sourceStatus: args.sourceStatus, isPrivate: false,
+    });
     return { topicId: topic._id, questionCount, sessionCount, status };
+  },
+});
+
+export const recordPrivateQuestionEvent = mutation({
+  args: {
+    secret: v.string(), centerSlug: v.string(),
+    outcome: v.union(v.literal("answered"), v.literal("needs_staff")),
+    sourceStatus: v.union(v.literal("sourced"), v.literal("unsourced")),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    assertServerSecret(args.secret);
+    const center = await ctx.db.query("centers").withIndex("by_slug", (q) => q.eq("slug", args.centerSlug)).unique();
+    if (!center) throw new Error("Center not found");
+    await ctx.db.insert("questionEvents", {
+      centerId: center._id, redactedQuestion: "Private child question", askedAt: Date.now(),
+      isPrivate: true, outcome: args.outcome, sourceStatus: args.sourceStatus,
+    });
+    return null;
   },
 });
 

@@ -57,9 +57,22 @@ type Suggestion = {
   questionCount: number
 }
 
+type QuestionEvent = {
+  id: string
+  question: string
+  topicId: string | null
+  topicTitle: string | null
+  askedAt: string
+  outcome: "answered" | "needs_staff"
+  sourceStatus: "sourced" | "unsourced"
+  isPrivate?: boolean
+}
+
 type AdminData = {
   center: { name: string }
   topics: Topic[]
+  questions: QuestionEvent[]
+  questionCursor: string | null
   knowledge: KnowledgeEntry[]
   suggestions: Suggestion[]
 }
@@ -97,6 +110,12 @@ function formatRelativeTime(value: string) {
   return `${days} days ago`
 }
 
+function formatQuestionTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "Recently"
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date)
+}
+
 function statusLabel(status: TopicStatus) {
   if (status === "needs_answer") return "Needs answer"
   if (status === "needs_review") return "Needs review"
@@ -123,7 +142,7 @@ export default function AdminConsole() {
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState("")
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null)
-  const [activeView, setActiveView] = useState<"inbox" | "handbook">("inbox")
+  const [activeView, setActiveView] = useState<"stream" | "inbox" | "handbook">("stream")
   const [search, setSearch] = useState("")
   const [draft, setDraft] = useState<KnowledgeDraft>(emptyDraft)
   const [isEditing, setIsEditing] = useState(false)
@@ -138,20 +157,30 @@ export default function AdminConsole() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [pin, setPin] = useState("")
   const [authError, setAuthError] = useState("")
+  const [isLoadingOlderQuestions, setIsLoadingOlderQuestions] = useState(false)
+  const [olderQuestionsError, setOlderQuestionsError] = useState("")
 
-  const loadData = useCallback(async function loadData() {
-    setIsLoading(true)
+  const loadData = useCallback(async function loadData(shouldShowLoading = true) {
+    if (shouldShowLoading) setIsLoading(true)
     setLoadError("")
     try {
       const response = await fetch("/api/admin", { cache: "no-store" })
       if (!response.ok) throw new Error(`Admin data could not be loaded (${response.status}).`)
       const result = (await response.json()) as AdminData
-      setData(result)
+      setData((current) => {
+        if (!current || current.questions.length <= 50) return result
+        const freshIds = new Set(result.questions.map((event) => event.id))
+        return {
+          ...result,
+          questions: [...result.questions, ...current.questions.filter((event) => !freshIds.has(event.id))],
+          questionCursor: current.questionCursor,
+        }
+      })
       if (!selectedTopicId && result.topics.length) setSelectedTopicId(result.topics[0].id)
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Admin data could not be loaded.")
     } finally {
-      setIsLoading(false)
+      if (shouldShowLoading) setIsLoading(false)
     }
   }, [selectedTopicId])
 
@@ -175,6 +204,14 @@ export default function AdminConsole() {
     if (isAuthenticated) void loadData()
   }, [isAuthenticated, loadData])
 
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void loadData(false)
+    }, 15_000)
+    return () => window.clearInterval(interval)
+  }, [isAuthenticated, loadData])
+
   const visibleTopics = useMemo(() => {
     const query = search.trim().toLowerCase()
     return (data?.topics ?? []).filter((topic) => !query || topic.title.toLowerCase().includes(query) || topic.examples.some((example) => example.toLowerCase().includes(query)))
@@ -189,6 +226,26 @@ export default function AdminConsole() {
       : []
     return [...generated, ...(data?.suggestions ?? [])]
   }, [assistResultMode, assistSuggestions, data?.suggestions])
+
+  async function loadOlderQuestions() {
+    if (!data?.questionCursor || isLoadingOlderQuestions) return
+    setIsLoadingOlderQuestions(true)
+    setOlderQuestionsError("")
+    try {
+      const response = await fetch(`/api/admin?questionCursor=${encodeURIComponent(data.questionCursor)}`, { cache: "no-store" })
+      if (!response.ok) throw new Error("Earlier questions could not be loaded.")
+      const result = (await response.json()) as Pick<AdminData, "questions" | "questionCursor">
+      setData((current) => {
+        if (!current) return current
+        const existingIds = new Set(current.questions.map((event) => event.id))
+        return { ...current, questions: [...current.questions, ...result.questions.filter((event) => !existingIds.has(event.id))], questionCursor: result.questionCursor }
+      })
+    } catch (error) {
+      setOlderQuestionsError(error instanceof Error ? error.message : "Earlier questions could not be loaded.")
+    } finally {
+      setIsLoadingOlderQuestions(false)
+    }
+  }
 
   async function signIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -335,15 +392,47 @@ export default function AdminConsole() {
         </section>
 
         <div className="mb-4 flex items-center gap-1 border-b">
+          <button onClick={() => { setActiveView("stream"); setIsEditing(false) }} className={`relative px-4 py-3 text-sm font-medium transition-colors ${activeView === "stream" ? "text-foreground after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary" : "text-muted-foreground hover:text-foreground"}`}>
+            Recent questions
+          </button>
           <button onClick={() => { setActiveView("inbox"); setIsEditing(false) }} className={`relative px-4 py-3 text-sm font-medium transition-colors ${activeView === "inbox" ? "text-foreground after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary" : "text-muted-foreground hover:text-foreground"}`}>
-            Questions <Badge variant="secondary" className="ml-1.5">{unansweredCount}</Badge>
+            Topics <Badge variant="secondary" className="ml-1.5">{unansweredCount}</Badge>
           </button>
           <button onClick={() => { setActiveView("handbook"); setIsEditing(false) }} className={`relative px-4 py-3 text-sm font-medium transition-colors ${activeView === "handbook" ? "text-foreground after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary" : "text-muted-foreground hover:text-foreground"}`}>
             Handbook & FAQs <span className="ml-1.5 text-xs text-muted-foreground">{data?.knowledge.length ?? ""}</span>
           </button>
         </div>
 
-        {isLoading && !data ? <Card className="flex min-h-72 items-center justify-center"><div className="flex items-center gap-3 text-muted-foreground"><LoaderCircle className="h-5 w-5 animate-spin" /> Loading your center…</div></Card> : activeView === "inbox" ? (
+        {isLoading && !data ? <Card className="flex min-h-72 items-center justify-center"><div className="flex items-center gap-3 text-muted-foreground"><LoaderCircle className="h-5 w-5 animate-spin" /> Loading your center…</div></Card> : activeView === "stream" ? (
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+            <Card className="min-w-0 shadow-hard">
+              <CardHeader className="border-b-2 pb-4">
+                <CardTitle className="text-xl font-bold">Every question, as it comes in</CardTitle>
+                <CardDescription className="text-sm">Recent parent questions update every 15 seconds. Private child questions appear without names or message details.</CardDescription>
+              </CardHeader>
+              <div className="divide-y-2 divide-border">
+                {(data?.questions ?? []).length ? data?.questions.map((event) => (
+                  <div key={event.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <Badge variant="outline" className={event.outcome === "answered" ? "bg-brand-teal text-foreground" : "bg-brand-amber text-foreground"}>{event.outcome === "answered" ? "Answered" : "Needs staff"}</Badge>
+                        <span className="text-xs text-muted-foreground">{formatQuestionTime(event.askedAt)}</span>
+                      </div>
+                      <p className="text-base font-semibold leading-snug">{event.question}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{event.topicTitle ? `Topic: ${event.topicTitle}` : "Private family question"} · {event.sourceStatus === "sourced" ? "Sourced answer" : "No verified source"}</p>
+                    </div>
+                    {event.topicId ? <Button variant="outline" size="sm" className="shrink-0 self-start" onClick={() => { setSelectedTopicId(event.topicId); setActiveView("inbox") }}>Review topic<ChevronRight data-icon="inline-end" /></Button> : null}
+                  </div>
+                )) : <div className="p-8 text-center text-sm text-muted-foreground">New parent questions will appear here as they are asked.</div>}
+              </div>
+              {data?.questionCursor ? <div className="flex flex-col items-center gap-2 border-t-2 px-5 py-4"><Button variant="outline" onClick={() => void loadOlderQuestions()} disabled={isLoadingOlderQuestions}>{isLoadingOlderQuestions ? "Loading earlier questions…" : "Load earlier questions"}</Button>{olderQuestionsError ? <p role="alert" className="text-sm text-destructive">{olderQuestionsError}</p> : null}</div> : null}
+            </Card>
+            <Card className="self-start bg-accent">
+              <CardHeader><CardTitle className="text-lg font-bold">Turn demand into answers</CardTitle><CardDescription className="text-foreground">Questions with no verified source become topics for your team to review.</CardDescription></CardHeader>
+              <CardContent className="space-y-3"><p className="text-sm">{unansweredCount} topics need an approved answer. Similar questions are grouped so one handbook update can help many families.</p><Button variant="outline" className="w-full bg-card" onClick={() => setActiveView("inbox")}>Review topics<ArrowUpRight data-icon="inline-end" /></Button></CardContent>
+            </Card>
+          </div>
+        ) : activeView === "inbox" ? (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.88fr)]">
             <Card className="min-w-0 shadow-hard">
               <CardHeader className="border-b pb-4">

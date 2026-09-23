@@ -16,6 +16,11 @@ const adminPayload = {
       examples: ["Will the center be open on the teacher workday?"],
     },
   ],
+  questions: [
+    { id: "question-2", question: "Private child question", topicId: null, topicTitle: null, askedAt: "2026-09-23T14:00:00.000Z", outcome: "needs_staff", sourceStatus: "unsourced", isPrivate: true },
+    { id: "question-1", question: "Will the center be open on the teacher workday?", topicId: "topic-closure", topicTitle: "Are we open on the teacher workday?", askedAt: "2026-09-23T13:00:00.000Z", outcome: "needs_staff", sourceStatus: "unsourced", isPrivate: false },
+  ],
+  questionCursor: null,
   knowledge: [],
   suggestions: [],
 }
@@ -39,6 +44,7 @@ describe("AdminConsole", () => {
   it("links an approved handbook answer to the unanswered parent topic", async () => {
     render(<AdminConsole />)
 
+    fireEvent.click(await screen.findByRole("button", { name: /Topics/ }))
     await screen.findByRole("button", { name: /Are we open on the teacher workday\?/ })
     fireEvent.click(screen.getByRole("button", { name: "Write an approved answer" }))
 
@@ -58,5 +64,15 @@ describe("AdminConsole", () => {
       sourceLabel: "Center calendar · October",
     })
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/admin", { cache: "no-store" }))
+  })
+
+  it("shows individual recent questions and keeps private child wording hidden", async () => {
+    render(<AdminConsole />)
+
+    expect(await screen.findByText("Will the center be open on the teacher workday?")).toBeInTheDocument()
+    expect(screen.getByText("Private child question")).toBeInTheDocument()
+    expect(screen.getByText(/Private family question/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Review topic" }))
+    expect((await screen.findAllByRole("button", { name: "Write an approved answer" })).length).toBeGreaterThan(0)
   })
 })

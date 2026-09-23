@@ -75,4 +75,13 @@ export default defineSchema({
     topicId: v.id("topics"),
     sessionKey: v.string(),
   }).index("by_topic_and_session", ["topicId", "sessionKey"]),
+  questionEvents: defineTable({
+    centerId: v.id("centers"),
+    topicId: v.optional(v.id("topics")),
+    redactedQuestion: v.string(),
+    askedAt: v.number(),
+    isPrivate: v.boolean(),
+    outcome: v.union(v.literal("answered"), v.literal("needs_staff")),
+    sourceStatus: v.union(v.literal("sourced"), v.literal("unsourced")),
+  }).index("by_center_and_asked_at", ["centerId", "askedAt"]),
 });

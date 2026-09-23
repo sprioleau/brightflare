@@ -13,6 +13,27 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "The control center is not connected yet." }, { status: 503 });
   }
   try {
+    const requestedQuestionCursor = request.nextUrl.searchParams.get("questionCursor");
+    if (requestedQuestionCursor !== null) {
+      const eventPage = await client.query(api.brightflare.getAdminQuestionEvents, {
+        secret,
+        centerSlug: "little-lantern",
+        paginationOpts: { numItems: 50, cursor: requestedQuestionCursor },
+      });
+      return Response.json({
+        questions: eventPage.page.map((event) => ({
+          id: event.id,
+          question: event.question,
+          topicId: event.topicId,
+          topicTitle: event.topicTitle,
+          askedAt: new Date(event.askedAt).toISOString(),
+          outcome: event.outcome,
+          sourceStatus: event.sourceStatus,
+          isPrivate: event.isPrivate,
+        })),
+        questionCursor: eventPage.isDone ? null : eventPage.continueCursor,
+      });
+    }
     const result = await client.query(api.brightflare.getAdmin, {
       secret,
       centerSlug: "little-lantern",
@@ -28,9 +49,30 @@ export async function GET(request: NextRequest) {
         examples: topic.recentExamples,
       }))
       .sort((left, right) => right.questionCount - left.questionCount);
+    const questions = result.recentQuestions.map((event) => ({
+      id: event.id,
+      question: event.question,
+      topicId: event.topicId,
+      topicTitle: event.topicTitle,
+      askedAt: new Date(event.askedAt).toISOString(),
+      outcome: event.outcome,
+      sourceStatus: event.sourceStatus,
+      isPrivate: event.isPrivate,
+    }));
+    let questionCursor: string | null = null;
+    if (questions.length === 50) {
+      const page = await client.query(api.brightflare.getAdminQuestionEvents, {
+        secret,
+        centerSlug: "little-lantern",
+        paginationOpts: { numItems: 50, cursor: null },
+      });
+      questionCursor = page.isDone ? null : page.continueCursor;
+    }
     return Response.json({
       center: { name: result.center.name },
       topics,
+      questions,
+      questionCursor,
       knowledge: result.knowledge.map((entry) => ({
         ...entry,
         startsAt: entry.startsAt ? new Date(entry.startsAt).toISOString() : null,
