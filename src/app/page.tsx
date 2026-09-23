@@ -2,7 +2,7 @@ export default function Home() {
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
       <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <div className="flex gap-1 items-center">
+        <div className="flex flex-row gap-1 items-center">
           <svg width="32" height="32" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-1">
             <title>brightflare logo</title>
             <path fillRule="evenodd" clipRule="evenodd" d="M41.8939 63.5C39.8347 64.6695 37.7009 65.713 35.5039 66.6231C28.5278 69.5126 21.0509 71 13.5 71C19.0811 71 24.6074 72.0996 29.7637 74.2354C34.92 76.3712 39.6053 79.5018 43.5518 83.4482C47.4983 87.3948 50.6288 92.08 52.7647 97.2363C54.9004 102.393 56 107.919 56 113.5C56 117.642 59.3579 121 63.5 121C67.6421 121 71 117.642 71 113.5C71 105.949 69.5126 98.4722 66.6231 91.4961C65.713 89.2991 64.6695 87.1653 63.5 85.1061C60.956 80.6265 57.8161 76.4997 54.1582 72.8418C50.5004 69.1839 46.3735 66.044 41.8939 63.5Z" fill="#2ABABB"/>
