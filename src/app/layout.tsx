@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Brightray",
+  title: "brightflare",
   description: "A childcare center front desk companion app that provides the answers parents need.",
 };
 
