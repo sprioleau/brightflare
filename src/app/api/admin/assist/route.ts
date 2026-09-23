@@ -1,8 +1,8 @@
-import { Output, ToolLoopAgent, tool } from "ai";
+import { isStepCount, Output, ToolLoopAgent, tool } from "ai";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { api } from "../../../../../convex/_generated/api";
-import { getGeminiModel } from "@/lib/ai-model";
+import { getGeminiModel, getGeminiOverloadFallbackModel, isGeminiOverloaded } from "@/lib/ai-model";
 import { getConvexServerClient, getConvexServerSecret } from "@/lib/convex-server";
 import { getSessionRole, isSameOrigin } from "@/lib/session";
 
@@ -32,9 +32,10 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "The admin assistant is not connected yet." }, { status: 503 });
   }
 
-  const agent = new ToolLoopAgent({
-    model,
+  const agentOptions = {
     output: Output.object({ schema: outputSchema }),
+    stopWhen: isStepCount(5),
+    maxRetries: 1,
     instructions: "You help center staff draft FAQ content. You may suggest edits but never publish or change the handbook. Always use the provided tools to check center evidence before making a claim about policy, schedules, or historical demand. Do not fabricate a policy. If no approved source answers a topic, suggest a concise question for staff to answer and clearly say staff confirmation is needed. Never include a child's private information. Return only useful short suggestions. For titles, each suggestion must fit within 65 characters.",
     tools: {
       inspectHandbook: tool({
@@ -45,6 +46,48 @@ export async function POST(request: NextRequest) {
           centerSlug: "little-lantern",
           now: Date.now(),
         }),
+      }),
+      inspectHandbookEntry: tool({
+        description: "Find current published handbook entries related to a specific topic and return their approved answer and source details. Use this for focused policy checks.",
+        inputSchema: z.object({ topic: z.string().trim().min(2).max(120) }),
+        execute: async ({ topic }) => {
+          const entries = await client.query(api.brightflare.getKnowledgeForAsk, {
+            secret,
+            centerSlug: "little-lantern",
+            now: Date.now(),
+          });
+          const query = topic.toLocaleLowerCase();
+          return entries
+            .map((entry) => ({
+              ...entry,
+              relevance: `${entry.title} ${entry.answer} ${entry.sourceLabel}`.toLocaleLowerCase().includes(query),
+            }))
+            .filter((entry) => entry.relevance)
+            .slice(0, 5)
+            .map(({ relevance: _relevance, ...entry }) => entry);
+        },
+      }),
+      inspectRecentPublicQuestions: tool({
+        description: "Read recent public family questions only, excluding private child questions. Use these to understand recent wording and demand.",
+        inputSchema: z.object({}),
+        execute: async () => {
+          const result = await client.query(api.brightflare.getAdminQuestionEvents, {
+            secret,
+            centerSlug: "little-lantern",
+            paginationOpts: { numItems: 50, cursor: null },
+          });
+          return result.page
+            .filter((event) => !event.isPrivate)
+            .slice(0, 12)
+            .map(({ id, question, topicTitle, askedAt, outcome, sourceStatus }) => ({
+              id,
+              question,
+              topicTitle,
+              askedAt,
+              outcome,
+              sourceStatus,
+            }));
+        },
       }),
       inspectSeasonalHistory: tool({
         description: "Read previous years' family question counts for the chosen calendar month.",
@@ -71,18 +114,27 @@ export async function POST(request: NextRequest) {
         },
       }),
     },
-  });
+  };
 
   const currentMonth = new Date().getUTCMonth() + 1;
   const prompt = parsed.data.mode === "seasonal"
     ? `Use inspectSeasonalHistory for month ${currentMonth} and inspectQuestionTrends. Suggest up to three seasonal FAQ titles for the next few weeks. Base them on retrieved historical counts and avoid topics already answered in the current handbook.`
     : parsed.data.mode === "title"
       ? `Use inspectHandbook. Suggest two or three plain-language FAQ titles of at most 65 characters for this staff draft: ${JSON.stringify(parsed.data.text)}. Preserve its meaning.`
-      : `Use inspectHandbook and inspectQuestionTrends. Topic ID: ${parsed.data.topicId || "none"}. Staff is investigating: ${JSON.stringify(parsed.data.text)}. Suggest a short answer draft only when directly supported by a current approved source. Otherwise, suggest the exact policy detail staff needs to confirm before publishing.`;
+      : `Use inspectHandbookEntry for the investigated topic, inspectHandbook for broader context, inspectRecentPublicQuestions for recent family wording, and inspectQuestionTrends. Topic ID: ${parsed.data.topicId || "none"}. Staff is investigating: ${JSON.stringify(parsed.data.text)}. Suggest a short answer draft only when directly supported by a current approved source. Otherwise, suggest the exact policy detail staff needs to confirm before publishing.`;
   try {
-    const { output } = await agent.generate({ prompt });
+    const { output } = await new ToolLoopAgent({ model, ...agentOptions }).generate({ prompt });
     return Response.json(output);
-  } catch {
+  } catch (error) {
+    const fallbackModel = getGeminiOverloadFallbackModel();
+    if (fallbackModel && isGeminiOverloaded(error)) {
+      try {
+        const { output } = await new ToolLoopAgent({ model: fallbackModel, ...agentOptions }).generate({ prompt });
+        return Response.json(output);
+      } catch {
+        return Response.json({ error: "The assistant could not prepare a suggestion. Please try again." }, { status: 503 });
+      }
+    }
     return Response.json({ error: "The assistant could not prepare a suggestion. Please try again." }, { status: 503 });
   }
 }

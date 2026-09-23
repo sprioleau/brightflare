@@ -2,7 +2,7 @@ import { google } from "@ai-sdk/google";
 import { gateway } from "ai";
 
 export function getGeminiModel() {
-  const modelId = process.env.GEMINI_MODEL_ID?.trim() || "gemini-3.6-flash";
+  const modelId = process.env.GEMINI_MODEL_ID?.trim() || "gemini-3.5-flash-lite";
   if (process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim()) return google(modelId);
   if (
     process.env.AI_GATEWAY_API_KEY ||
@@ -15,11 +15,11 @@ export function getGeminiModel() {
 }
 
 export function getGeminiOverloadFallbackModel() {
-  const modelId = process.env.GEMINI_MODEL_ID?.trim() || "gemini-3.6-flash";
-  if (modelId !== "gemini-3.6-flash") return null;
-  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim()) return google("gemini-3.5-flash-lite");
+  const modelId = process.env.GEMINI_MODEL_ID?.trim() || "gemini-3.5-flash-lite";
+  if (modelId !== "gemini-3.5-flash-lite") return null;
+  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim()) return google("gemini-3.5-flash");
   if (process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN || process.env.VERCEL) {
-    return gateway("google/gemini-3.5-flash-lite");
+    return gateway("google/gemini-3.5-flash");
   }
   return null;
 }
