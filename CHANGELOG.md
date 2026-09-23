@@ -5,10 +5,10 @@ Notable changes to brightflare and brightflare Admin.
 ## Delivered features
 
 - **Family desk:** Six featured, gapped FAQ cards show a short answer and source. Opening a card shows the full center-approved answer and review date.
-- **Grounded questions:** Families can type a question for an answer based on the current handbook and dated center updates. Gemini 3.6 Flash is the primary model; only validated source citations appear, and uncertain answers go to staff. Gemini 3.5 Flash Lite handles 3.6 capacity or quota limits.
+- **Grounded questions:** Families can type a question for an answer based on the current handbook and dated center updates. Gemini 3.5 Flash-Lite uses focused, read-only source tools; only validated citations appear, and uncertain answers go to staff. Gemini 3.5 Flash handles Flash-Lite capacity or quota limits.
 - **Seasonal knowledge:** Staff can feature evergreen or dated FAQs, choose visibility windows, and publish approved answers. Expired entries leave the parent desk automatically.
 - **Question intelligence:** The admin console streams individual public questions with answer and source status, groups repeated questions into topics, and shows question and anonymous-session counts for staff review.
-- **Admin assistant:** Staff can request short FAQ titles, answer drafts, knowledge suggestions, and seasonal ideas drawn from the center's question history. Publishing remains a staff decision.
+- **Admin assistant:** Staff can request short FAQ titles, answer drafts, knowledge suggestions, and seasonal ideas using focused handbook and public-question tools. Publishing remains a staff decision.
 - **Private family path:** A verified demo family can ask about a fictional child and teacher messages with `@child`. Private wording stays out of public topics and the admin stream, and the shared screen clears the answer after the session.
 - **Brightflare UI:** The parent desk and staff console use the Brightflare logo, ShadCN components, and a rounded, readable Neubrutalism theme.
 
@@ -22,6 +22,7 @@ Notable changes to brightflare and brightflare Admin.
 
 
 ### Features
+- Use Gemini 3.5 with scoped answer tools
 - Show popular questions as spaced cards
 - Add Gemini 3.6 answers and parent question stream
 - Build sourced family desk and center admin prototype
