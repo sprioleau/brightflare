@@ -1,3 +1,9 @@
 # Changelog
 
-Notable changes to brightflare and brightflare Admin will be generated from Conventional Commits with `pnpm changelog` after each verified feature.
+Notable changes to brightflare and brightflare Admin.
+
+## Unreleased
+
+### Features
+- Build sourced family desk and center admin prototype
+

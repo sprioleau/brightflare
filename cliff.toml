@@ -1,7 +1,7 @@
 [changelog]
-header = "# Changelog\n\nNotable changes to brightflare and brightflare Admin.\n"
+header = "# Changelog\n\nNotable changes to brightflare and brightflare Admin.\n\n"
 body = """
-## {% if version %}{{ version }}{% else %}Unreleased{% endif %} · {{ timestamp | date(format="%Y-%m-%d") }}
+## {% if version %}{{ version }}{% else %}Unreleased{% endif %}
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group | trim }}
 {% for commit in commits %}- {{ commit.message | upper_first }}
