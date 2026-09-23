@@ -290,8 +290,8 @@ export default function ParentDesk() {
 
 function FaqCard({ faq, index, onSelect }: { faq: Faq; index: number; onSelect: (faq: Faq) => void }) {
   return <Card className="gap-0 py-0 shadow-hard-sm">
-    <button type="button" className="h-full w-full rounded-xl text-left focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring" onClick={() => onSelect(faq)}>
-      <CardContent className="flex h-full min-h-44 flex-col items-start gap-3 py-5">
+    <CardContent className="h-full px-0">
+      <button type="button" className="flex h-full min-h-44 w-full flex-col items-start gap-3 rounded-xl px-6 py-5 text-left focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring" onClick={() => onSelect(faq)}>
         <span className="flex w-full items-center justify-between gap-3">
           <span className={`size-3 shrink-0 rounded-sm border border-foreground ${["bg-brand-amber", "bg-brand-teal", "bg-brand-pink", "bg-brand-blue"][index % 4]}`} aria-hidden="true" />
           <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
@@ -299,8 +299,8 @@ function FaqCard({ faq, index, onSelect }: { faq: Faq; index: number; onSelect: 
         <span className="text-base font-bold leading-snug">{faq.title}</span>
         <span className="text-sm leading-6 text-muted-foreground">{faq.shortAnswer}</span>
         <span className="mt-auto flex items-center gap-1.5 pt-1 text-xs font-medium text-foreground"><BookOpen aria-hidden="true" className="size-4 shrink-0" />{faq.sourceLabel}</span>
-      </CardContent>
-    </button>
+      </button>
+    </CardContent>
   </Card>;
 }
 
