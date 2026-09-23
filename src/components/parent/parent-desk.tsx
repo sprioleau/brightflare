@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronRight, CircleHelp, Clock3, LockKeyhole, MessageCircle, Send, ShieldCheck, UserRound } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -251,7 +251,7 @@ export default function ParentDesk() {
               {isLoading ? <p className="py-5 text-sm text-muted-foreground" role="status">Loading center answers…</p> : null}
               {loadError ? <Alert variant="destructive"><CircleHelp /><AlertTitle>We can&apos;t load the center&apos;s answers</AlertTitle><AlertDescription>{loadError}<Button variant="link" className="ml-1 h-auto p-0" onClick={() => window.location.reload()}>Try again</Button></AlertDescription></Alert> : null}
               {!isLoading && !loadError && featuredFaqs.length === 0 ? <Card><div className="px-5 py-6 text-base text-muted-foreground">No quick answers are available yet. Ask a question above and we&apos;ll help you find the right person.</div></Card> : null}
-              {!isLoading && !loadError && featuredFaqs.length > 0 ? <Card className="gap-0 shadow-hard">{featuredFaqs.map((faq, index) => <FaqRow faq={faq} key={faq.id} index={index} isLast={index === featuredFaqs.length - 1} onSelect={openFaq} />)}</Card> : null}
+              {!isLoading && !loadError && featuredFaqs.length > 0 ? <div className="grid gap-4 sm:grid-cols-2">{featuredFaqs.map((faq, index) => <FaqCard faq={faq} key={faq.id} index={index} onSelect={openFaq} />)}</div> : null}
             </section>
           </>
         )}
@@ -288,21 +288,20 @@ export default function ParentDesk() {
   );
 }
 
-function FaqRow({ faq, index, isLast, onSelect }: { faq: Faq; index: number; isLast: boolean; onSelect: (faq: Faq) => void }) {
-  return <div className="px-4 sm:px-5">
-    <button type="button" className="flex w-full items-start justify-between gap-4 rounded-lg py-4 text-left focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring" onClick={() => onSelect(faq)}>
-      <span className="flex min-w-0 gap-3">
-        <span className={`mt-1.5 size-3 shrink-0 rounded-sm border border-foreground ${["bg-brand-amber", "bg-brand-teal", "bg-brand-pink", "bg-brand-blue"][index % 4]}`} aria-hidden="true" />
-        <span className="flex min-w-0 flex-col gap-1.5">
-          <span className="text-base font-bold">{faq.title}</span>
-          <span className="text-base leading-6 text-muted-foreground">{faq.shortAnswer}</span>
-          <span className="flex items-center gap-1.5 text-sm font-medium text-foreground"><BookOpen aria-hidden="true" className="size-4" />{faq.sourceLabel}</span>
+function FaqCard({ faq, index, onSelect }: { faq: Faq; index: number; onSelect: (faq: Faq) => void }) {
+  return <Card className="gap-0 py-0 shadow-hard-sm">
+    <button type="button" className="h-full w-full rounded-xl text-left focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring" onClick={() => onSelect(faq)}>
+      <CardContent className="flex h-full min-h-44 flex-col items-start gap-3 py-5">
+        <span className="flex w-full items-center justify-between gap-3">
+          <span className={`size-3 shrink-0 rounded-sm border border-foreground ${["bg-brand-amber", "bg-brand-teal", "bg-brand-pink", "bg-brand-blue"][index % 4]}`} aria-hidden="true" />
+          <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
         </span>
-      </span>
-      <ChevronRight aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        <span className="text-base font-bold leading-snug">{faq.title}</span>
+        <span className="text-sm leading-6 text-muted-foreground">{faq.shortAnswer}</span>
+        <span className="mt-auto flex items-center gap-1.5 pt-1 text-xs font-medium text-foreground"><BookOpen aria-hidden="true" className="size-4 shrink-0" />{faq.sourceLabel}</span>
+      </CardContent>
     </button>
-    {!isLast ? <Separator /> : null}
-  </div>;
+  </Card>;
 }
 
 function AnswerPanel({ answer, sourceLabel, reviewedAt, isHandoff }: { answer: string; sourceLabel: string; reviewedAt: string; isHandoff: boolean }) {

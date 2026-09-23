@@ -14,6 +14,15 @@ const deskResponse = {
       reviewedAt: "2026-09-01",
       category: "Hours",
     },
+    {
+      id: "faq-bag",
+      title: "What should we bring?",
+      shortAnswer: "Bring a labeled water bottle.",
+      answer: "Please bring a labeled water bottle and a change of clothes.",
+      sourceLabel: "Family Handbook · Daily essentials",
+      reviewedAt: "2026-09-02",
+      category: "Daily care",
+    },
   ],
 };
 
@@ -28,7 +37,7 @@ afterEach(() => {
 });
 
 describe("parent front desk", () => {
-  it("shows FAQ short answers in the list and opens the sourced full answer", async () => {
+  it("shows separate FAQ previews and opens each sourced full answer", async () => {
     vi.stubGlobal("fetch", vi.fn(() => jsonResponse(deskResponse)));
 
     render(<ParentDesk />);
@@ -39,6 +48,12 @@ describe("parent front desk", () => {
     expect(screen.getByText("The center closes at 5:30 PM Monday through Friday.")).toBeInTheDocument();
     expect(screen.getByText("Family Handbook · Hours")).toBeInTheDocument();
     expect(screen.getByText(/Reviewed/)).toHaveTextContent("Sep 1, 2026");
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to questions" }));
+    expect(screen.getByText("Bring a labeled water bottle.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /what should we bring/i }));
+    expect(screen.getByText("Please bring a labeled water bottle and a change of clothes.")).toBeInTheDocument();
+    expect(screen.getByText("Family Handbook · Daily essentials")).toBeInTheDocument();
   });
 
   it("requires successful center auth before submitting a child question and does not send the child's name as question data", async () => {
