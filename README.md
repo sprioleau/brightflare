@@ -4,9 +4,9 @@ A calmer front desk for childcare families, with a companion workspace for cente
 
 ## What works
 
-- **Parent desk:** up to six prominent FAQs with one-sentence answers, full sourced answers, and text questions grounded in the active center handbook.
+- **Parent desk:** up to six featured FAQs in a spaced, responsive card grid with one-sentence answers, full sourced answers, and text questions grounded in the active center handbook.
 - **Time-aware knowledge:** staff can feature FAQs and set start/end dates for seasonal information. Expired entries leave the parent experience automatically.
-- **Demand inbox:** public questions become de-identified topics with question and anonymous-session counts. Missing answers and answers needing review are called out.
+- **Question stream and demand inbox:** staff see each submitted public question and its answer/source status. Related questions become de-identified topics with question and anonymous-session counts. Missing answers and answers needing review are called out.
 - **Staff workflow:** approve a sourced handbook entry from a topic, including its parent-facing title, short answer, source label, and visibility dates. Published content immediately becomes searchable and can resolve the topic.
 - **Admin assistant:** Vercel AI SDK tools retrieve current handbook entries, grouped questions, and prior-year seasonal demand to suggest titles, answer drafts, and timely FAQ ideas. Staff review all suggestions before publishing.
 - **Private child path:** a demo family PIN gates fictional teacher-message search through `@child`. Child-specific questions are excluded from public topic analytics, and the answer clears from the shared screen after 30 seconds or when the tab is hidden.
@@ -15,10 +15,10 @@ The prototype uses **Little Lantern Learning Center**, a fictional center with s
 
 ## Demo access
 
-- Staff: `/admin`, PIN `2468`
+- Staff in local development and Preview: `/admin`, demo PIN `2468`. Production uses a separate Vercel environment variable.
 - Family child search: choose **Ask about my child**, enter `Mia Carter` and PIN `1357`
 
-These are intentionally simple **fictional demo credentials**, not a production authentication scheme.
+These are intentionally simple **fictional demo credentials**, not a production authentication scheme. Production's admin credential is configured separately and is not stored in this repository.
 
 ## Run locally
 
