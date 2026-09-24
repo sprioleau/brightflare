@@ -9,6 +9,7 @@ describe("Gemini model configuration", () => {
     VERCEL_OIDC_TOKEN: process.env.VERCEL_OIDC_TOKEN,
     VERCEL: process.env.VERCEL,
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+    OPENROUTER_FALLBACK_ENABLED: process.env.OPENROUTER_FALLBACK_ENABLED,
     OPENROUTER_MODEL_ID: process.env.OPENROUTER_MODEL_ID,
   };
 
@@ -44,21 +45,32 @@ describe("Gemini model configuration", () => {
     expect(isGeminiOverloaded(new Error("You exceeded your current quota. Quota exceeded for metric: generate_content_free_tier_requests"))).toBe(true);
   });
 
-  it("leaves OpenRouter disabled when its key is blank", () => {
-    process.env.OPENROUTER_API_KEY = "  ";
+  it("keeps OpenRouter disabled unless explicitly enabled", () => {
+    process.env.OPENROUTER_API_KEY = "test-openrouter-key";
+    process.env.OPENROUTER_MODEL_ID = "test/free-model";
+    delete process.env.OPENROUTER_FALLBACK_ENABLED;
     expect(getOpenRouterFallbackModel()).toBeNull();
   });
 
-  it("selects the verified GPT OSS free model when OpenRouter is configured", () => {
+  it("requires an explicit model ID even when fallback is enabled", () => {
     process.env.OPENROUTER_API_KEY = "test-openrouter-key";
+    process.env.OPENROUTER_FALLBACK_ENABLED = "true";
     delete process.env.OPENROUTER_MODEL_ID;
-    expect(getOpenRouterFallbackModel()?.modelId).toBe("openai/gpt-oss-20b:free");
+    expect(getOpenRouterFallbackModel()).toBeNull();
   });
 
-  it("allows a configured OpenRouter model override", () => {
+  it("uses the explicitly enabled and configured OpenRouter model", () => {
     process.env.OPENROUTER_API_KEY = "test-openrouter-key";
-    process.env.OPENROUTER_MODEL_ID = "openai/gpt-oss-120b:free";
-    expect(getOpenRouterFallbackModel()?.modelId).toBe("openai/gpt-oss-120b:free");
+    process.env.OPENROUTER_FALLBACK_ENABLED = "true";
+    process.env.OPENROUTER_MODEL_ID = "liquid/lfm-2.5-2.6b:free";
+    expect(getOpenRouterFallbackModel()?.modelId).toBe("liquid/lfm-2.5-2.6b:free");
+  });
+
+  it("requires a nonblank API key even when explicitly configured", () => {
+    process.env.OPENROUTER_API_KEY = "  ";
+    process.env.OPENROUTER_FALLBACK_ENABLED = "true";
+    process.env.OPENROUTER_MODEL_ID = "test/free-model";
+    expect(getOpenRouterFallbackModel()).toBeNull();
   });
 
   it("uses the 3.5 Flash-Lite fallback through AI Gateway for configured 3.6 Flash", () => {

@@ -34,10 +34,12 @@ export function getGeminiOverloadFallbackModel() {
 }
 
 export function getOpenRouterFallbackModel() {
+  if (process.env.OPENROUTER_FALLBACK_ENABLED !== "true") return null;
   const apiKey = process.env.OPENROUTER_API_KEY?.trim();
-  if (!apiKey) return null;
+  const modelId = process.env.OPENROUTER_MODEL_ID?.trim();
+  if (!apiKey || !modelId) return null;
   const openrouter = createOpenRouter({ apiKey });
-  return openrouter(process.env.OPENROUTER_MODEL_ID?.trim() || "openai/gpt-oss-20b:free");
+  return openrouter(modelId);
 }
 
 export function isGeminiOverloaded(error: unknown): boolean {
