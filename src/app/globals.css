@@ -183,6 +183,9 @@ img { display: block; }
 .app-shell__center { display: flex; min-width: 0; flex-direction: column; gap: .12rem; color: var(--ink); font-size: 14px; font-weight: 600; }
 .app-shell__center small { color: var(--muted-foreground); font-size: 12px; font-weight: 400; }
 .app-shell__nav { display: flex; align-items: center; gap: .25rem; margin-left: auto; }
+.app-shell__mobile-menu { display: none !important; }
+.app-shell__mobile-nav { display: none; }
+.app-shell__mobile-nav nav { display: flex; flex-direction: column; gap: .45rem; }
 .app-shell__nav-link { min-height: 44px; padding-inline: .65rem !important; font-size: .875rem !important; }
 .app-shell__actions { display: flex; align-items: center; gap: .5rem; }
 .app-shell__motion { min-height: 44px; padding-inline: .65rem !important; font-size: .875rem !important; }
@@ -276,6 +279,23 @@ img { display: block; }
   .app-shell__motion-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
   .app-shell__actions { gap: .25rem; }
   .app-shell-content { padding-inline: .8rem; }
+}
+@media (max-width: 760px) {
+  .app-shell__header-inner { min-height: 0; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: minmax(47px, auto) auto auto; grid-template-areas: "brand mobile-menu" "center center" "mobile-nav mobile-nav"; gap: 0 .4rem; padding: 0 .65rem; }
+  .app-shell__brand { grid-area: brand; }
+  .app-shell__center { grid-area: center; justify-self: start; max-width: 100%; padding-block: 0 .3rem; text-align: left; }
+  .app-shell__nav { display: none; }
+  .app-shell__actions { display: none; }
+  .app-shell__mobile-menu { display: inline-flex !important; min-height: 44px; gap: .35rem; padding-inline: .65rem !important; }
+  .app-shell__mobile-menu { grid-area: mobile-menu; justify-self: end; }
+  .app-shell__mobile-nav { grid-area: mobile-nav; display: flex; flex-direction: column; gap: .7rem; padding: .35rem 0 .75rem; }
+  .app-shell__mobile-nav[hidden] { display: none; }
+  .app-shell__mobile-nav-link { width: 100%; justify-content: flex-start; gap: .65rem; padding-inline: .75rem !important; }
+  .app-shell__mobile-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; border-top: 1px solid var(--border); padding-top: .65rem; }
+}
+@media (max-width: 360px) {
+  .app-shell__mobile-menu { width: 44px; min-width: 44px; padding: 0 !important; }
+  .app-shell__mobile-menu span { display: none; }
 }
 @media (min-width: 768px) and (min-height: 700px) {
   .app-shell[data-section="family"] .app-toast-positioner { top: calc(var(--app-header-height) + 8px); bottom: auto; }
