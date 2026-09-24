@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronRight, CircleHelp, Clock3, LockKeyhole, MessageCircle, Send, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronRight, CircleHelp, Clock3, LockKeyhole, MessageCircle, Monitor, Send, ShieldCheck, UserRound, X } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -79,6 +79,24 @@ export default function ParentDesk() {
   const [pin, setPin] = useState("");
   const [isChildVerified, setIsChildVerified] = useState(false);
   const [childVerificationError, setChildVerificationError] = useState<string | null>(null);
+  const [isIpadPreviewOpen, setIsIpadPreviewOpen] = useState(false);
+  const [isIpadPreviewFrame, setIsIpadPreviewFrame] = useState(false);
+  const [ipadPreviewScale, setIpadPreviewScale] = useState(1);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    setIsIpadPreviewFrame(searchParams.get("ipadPreview") === "1");
+  }, []);
+
+  useEffect(() => {
+    if (!isIpadPreviewOpen) return;
+    function updateIpadPreviewScale() {
+      setIpadPreviewScale(Math.min((window.innerWidth - 48) / 1180, (window.innerHeight - 190) / 820, 1));
+    }
+    updateIpadPreviewScale();
+    window.addEventListener("resize", updateIpadPreviewScale);
+    return () => window.removeEventListener("resize", updateIpadPreviewScale);
+  }, [isIpadPreviewOpen]);
 
   useEffect(() => {
     let isMounted = true;
@@ -208,9 +226,10 @@ export default function ParentDesk() {
             <Logo size={32} />
             <span className="text-sm font-semibold sm:text-base">Family Help Desk</span>
           </a>
-          <div className="flex items-center gap-4 text-sm font-medium text-foreground sm:text-base">
+          <div className="flex items-center gap-3 text-xs font-medium text-foreground sm:gap-4 sm:text-base">
             <span className="hidden sm:inline">{deskData?.center.name ?? "Family Help Desk"}</span>
             <a href="/handbook" className="text-primary underline-offset-2 hover:underline">Handbook</a>
+            {!isIpadPreviewFrame ? <Button type="button" size="sm" variant="outline" aria-label="Preview iPad front desk" className="h-8 w-8 px-0 text-xs sm:h-9 sm:w-auto sm:px-3 sm:text-sm" onClick={() => setIsIpadPreviewOpen(true)}><Monitor aria-hidden="true" className="size-4" /><span className="hidden sm:inline">Preview iPad front desk</span></Button> : null}
           </div>
         </div>
       </header>
@@ -218,17 +237,17 @@ export default function ParentDesk() {
       <div className="mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-6xl flex-col px-4 pb-5 pt-5 sm:px-6 lg:px-8" id="home">
         <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end lg:mb-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{deskData?.center.name ?? "How can we help?"}</h1>
-            {deskData?.center.tagline ? <p className="mt-1 text-base text-muted-foreground">{deskData.center.tagline}</p> : <p className="mt-1 text-base text-muted-foreground">Quick answers for your family.</p>}
+            <h1 className="text-2xl font-bold tracking-tight sm:text-4xl">{deskData?.center.name ?? "How can we help?"}</h1>
+            {deskData?.center.tagline ? <p className="mt-1 text-sm text-muted-foreground sm:text-base">{deskData.center.tagline}</p> : <p className="mt-1 text-sm text-muted-foreground sm:text-base">Quick answers for your family.</p>}
           </div>
           {deskData?.center.hours ? <p className="flex items-center gap-2 self-start text-sm font-semibold text-foreground sm:self-auto"><Clock3 aria-hidden="true" className="size-4" />{deskData.center.hours}</p> : null}
         </div>
 
-        <div className="grid flex-1 items-start gap-7 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <div className="grid flex-1 items-start gap-7 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)]">
           <div className="flex flex-col gap-4">
             <Card className="gap-0 py-0 shadow-sm">
               <form onSubmit={(event) => { event.preventDefault(); void submitQuestion(); }}>
-                <label htmlFor="parent-question" className="block px-5 pt-4 text-lg font-semibold">What can we help you find?</label>
+                <label htmlFor="parent-question" className="block px-5 pt-4 text-base font-semibold sm:text-lg">What can we help you find?</label>
                 <Textarea id="parent-question" value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void submitQuestion(); } }} placeholder="Type your question here…" className="mx-5 my-3 min-h-16 w-[calc(100%-2.5rem)] lg:h-16" />
                 <p className="px-5 pb-3 text-xs text-muted-foreground">Shift + Enter to ask · Enter for a new line</p>
                 <div className="flex flex-col justify-between gap-3 border-t bg-accent/50 px-5 py-3 sm:flex-row sm:items-center">
@@ -248,7 +267,7 @@ export default function ParentDesk() {
           </div>
           <section aria-labelledby="faq-heading">
             <div className="mb-3 flex items-end justify-between gap-3">
-              <div><h2 id="faq-heading" className="text-2xl font-semibold">Popular questions</h2><p className="mt-0.5 text-base text-muted-foreground">Quick answers from your center</p></div>
+              <div><h2 id="faq-heading" className="text-xl font-semibold sm:text-2xl">Popular questions</h2><p className="mt-0.5 text-sm text-muted-foreground sm:text-base">Quick answers from your center</p></div>
               <span className="hidden text-xs text-muted-foreground sm:block">{featuredFaqs.length} answers</span>
             </div>
             {isLoading ? <p className="py-5 text-sm text-muted-foreground" role="status">Loading center answers…</p> : null}
@@ -263,6 +282,21 @@ export default function ParentDesk() {
           <div className="flex items-center gap-1.5"><ShieldCheck aria-hidden="true" className="size-3.5" />Answers come from center-approved information.</div>
         </footer>
       </div>
+
+      <Dialog open={isIpadPreviewOpen} onOpenChange={setIsIpadPreviewOpen}>
+        <DialogContent showCloseButton={false} className="w-[calc(100%-1rem)] max-w-[calc(100%-1rem)] gap-3 p-3 sm:w-[calc(100%-2rem)] sm:max-w-[calc(100%-2rem)] sm:p-4">
+          <DialogHeader className="flex-row items-center justify-between gap-3 pr-1">
+            <div className="flex flex-col gap-1">
+              <DialogTitle>iPad front desk preview</DialogTitle>
+              <DialogDescription>Landscape preview at 1180 × 820 pixels.</DialogDescription>
+            </div>
+            <Button type="button" variant="outline" size="sm" aria-label="Close iPad preview" onClick={() => setIsIpadPreviewOpen(false)}><X data-icon="inline-start" />Close</Button>
+          </DialogHeader>
+          <div className="mx-auto overflow-hidden rounded-lg border bg-background shadow-sm" style={{ width: 1180 * ipadPreviewScale, height: 820 * ipadPreviewScale }}>
+            <iframe title="Family help desk at iPad landscape resolution" src="/?ipadPreview=1" className="origin-top-left border-0" style={{ width: 1180, height: 820, transform: `scale(${ipadPreviewScale})` }} />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isChildSearchOpen} onOpenChange={(isOpen) => { if (!isOpen) resetChildAccess(); else setIsChildSearchOpen(true); }}>
         <DialogContent className="gap-5 rounded-xl border shadow-sm sm:max-w-md">
@@ -306,7 +340,7 @@ function FaqCard({ faq, index, onSelect }: { faq: Faq; index: number; onSelect: 
       <button type="button" aria-expanded={isExpanded} className="flex h-full min-h-16 w-full flex-col items-start gap-2 rounded-lg px-4 py-3 text-left focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring md:min-h-28" onClick={handleSelect}>
         <span className="flex w-full items-center gap-3">
           <span className={`size-3 shrink-0 border border-foreground ${["bg-brand-amber", "bg-brand-teal", "bg-brand-pink", "bg-brand-blue"][index % 4]}`} aria-hidden="true" />
-          <span className="flex-1 text-base font-bold leading-snug">{faq.title}</span>
+          <span className="flex-1 text-sm font-bold leading-snug sm:text-base">{faq.title}</span>
           <ChevronRight aria-hidden="true" className={`size-4 shrink-0 text-muted-foreground transition-transform md:hidden ${isExpanded ? "rotate-90" : ""}`} />
         </span>
         <span className={`text-sm leading-6 text-muted-foreground ${isExpanded ? "block" : "hidden md:block"}`}>{faq.shortAnswer}</span>
@@ -319,7 +353,7 @@ function FaqCard({ faq, index, onSelect }: { faq: Faq; index: number; onSelect: 
 
 function AnswerPanel({ answer, sourceLabel, sourceId, reviewedAt, isHandoff, isPrivate }: { answer: string; sourceLabel: string; sourceId: string; reviewedAt: string; isHandoff: boolean; isPrivate: boolean }) {
   return <div className="flex flex-col gap-4">
-    <p className="whitespace-pre-wrap text-base leading-7">{answer}</p>
+    <p className="whitespace-pre-wrap text-sm leading-6 sm:text-base sm:leading-7">{answer}</p>
     {isHandoff ? <Alert><MessageCircle /><AlertTitle>Let&apos;s get you a definite answer</AlertTitle><AlertDescription>This may depend on your family&apos;s situation. Please check with a member of the center team.</AlertDescription></Alert> : null}
     <div className="flex flex-col gap-1 border-t pt-3">
       <p className="flex items-center gap-1.5 text-sm font-medium"><BookOpen aria-hidden="true" className="size-4" />{isHandoff ? "Staff follow-up" : "Answer source"}</p>

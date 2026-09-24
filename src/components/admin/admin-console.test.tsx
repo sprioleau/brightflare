@@ -71,6 +71,19 @@ describe("AdminConsole", () => {
     }))
   })
 
+  it("opens the matching workspace view from its summary card", async () => {
+    render(<AdminConsole />)
+    await screen.findByText("Will the center be open on the teacher workday?")
+
+    fireEvent.click(screen.getByRole("button", { name: /In the handbook/ }))
+    expect(screen.getByText("Center handbook")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /In the handbook/ })).toHaveAttribute("aria-pressed", "true")
+
+    fireEvent.click(screen.getByRole("button", { name: /Need your answer/ }))
+    expect(screen.getByLabelText("Search question topics")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Need your answer/ })).toHaveAttribute("aria-pressed", "true")
+  })
+
   it("links an approved handbook answer to the unanswered parent topic", async () => {
     render(<AdminConsole />)
 

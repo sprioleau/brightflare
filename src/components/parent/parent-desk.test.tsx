@@ -37,6 +37,18 @@ afterEach(() => {
 });
 
 describe("parent front desk", () => {
+  it("opens and closes an iPad-size desk preview", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => jsonResponse(deskResponse)));
+    render(<ParentDesk />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview iPad front desk" }));
+    const preview = screen.getByTitle("Family help desk at iPad landscape resolution");
+    expect(preview).toHaveAttribute("src", "/?ipadPreview=1");
+    expect(preview).toHaveStyle({ width: "1180px", height: "820px" });
+    fireEvent.click(screen.getByRole("button", { name: "Close iPad preview" }));
+    expect(screen.queryByTitle("Family help desk at iPad landscape resolution")).not.toBeInTheDocument();
+  });
+
   it("reveals short FAQ previews first on mobile, then opens the full sourced answer", async () => {
     vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
     vi.stubGlobal("fetch", vi.fn(() => jsonResponse(deskResponse)));

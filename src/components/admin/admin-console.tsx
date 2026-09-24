@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Logo } from "@/components/brand/Logo"
 import {
   ArrowUpRight,
@@ -176,6 +176,9 @@ export default function AdminConsole() {
   const [loadError, setLoadError] = useState("")
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null)
   const [activeView, setActiveView] = useState<"stream" | "inbox" | "handbook">("stream")
+  const viewPanelRef = useRef<HTMLDivElement>(null)
+  const shouldScrollToViewRef = useRef(false)
+  const shouldWaitForInitialLoadRef = useRef(false)
   const [search, setSearch] = useState("")
   const [draft, setDraft] = useState<KnowledgeDraft>(emptyDraft)
   const [isEditing, setIsEditing] = useState(false)
@@ -199,6 +202,37 @@ export default function AdminConsole() {
   const [recommendationError, setRecommendationError] = useState("")
   const [recommendationActionId, setRecommendationActionId] = useState<string | null>(null)
   const [editingRecommendationId, setEditingRecommendationId] = useState<string | null>(null)
+
+  function selectView(view: "stream" | "inbox" | "handbook") {
+    setIsEditing(false)
+    shouldScrollToViewRef.current = true
+    if (activeView === view) {
+      requestAnimationFrame(() => {
+        viewPanelRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" })
+        shouldScrollToViewRef.current = false
+      })
+      return
+    }
+    setActiveView(view)
+  }
+
+  useEffect(() => {
+    if (!shouldScrollToViewRef.current) return
+    if (shouldWaitForInitialLoadRef.current && (isLoading || isLoadingRecommendations)) return
+    requestAnimationFrame(() => {
+      viewPanelRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" })
+      shouldScrollToViewRef.current = false
+      shouldWaitForInitialLoadRef.current = false
+    })
+  }, [activeView, isLoading, isLoadingRecommendations, data])
+
+  useEffect(() => {
+    const view = new URLSearchParams(window.location.search).get("view")
+    if (view !== "stream" && view !== "inbox" && view !== "handbook") return
+    shouldScrollToViewRef.current = true
+    shouldWaitForInitialLoadRef.current = true
+    setActiveView(view)
+  }, [])
 
   const loadRecommendations = useCallback(async function loadRecommendations() {
     setIsLoadingRecommendations(true)
@@ -466,25 +500,25 @@ export default function AdminConsole() {
           <a href="/admin" className="mb-8 flex items-center gap-3 rounded-lg px-2 py-1.5"><Logo size={32} variant="mark" /><span className="font-bold tracking-tight">brightflare <span className="font-medium text-muted-foreground">Admin</span></span></a>
           <div className="mb-3 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Workspace</div>
           <nav aria-label="Admin navigation" className="space-y-1">
-            <button type="button" onClick={() => { setActiveView("stream"); setIsEditing(false) }} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium ${activeView === "stream" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted"}`}><MessageCircle className="size-4" />Questions</button>
-            <button type="button" onClick={() => { setActiveView("inbox"); setIsEditing(false) }} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium ${activeView === "inbox" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted"}`}><CircleHelp className="size-4" />Question topics<Badge variant="secondary" className="ml-auto">{unansweredCount}</Badge></button>
-            <button type="button" onClick={() => { setActiveView("handbook"); setIsEditing(false) }} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium ${activeView === "handbook" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted"}`}><BookOpen className="size-4" />Handbook</button>
+            <button type="button" aria-pressed={activeView === "stream"} onClick={() => selectView("stream")} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${activeView === "stream" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted"}`}><MessageCircle aria-hidden="true" className="size-4" />Questions</button>
+            <button type="button" aria-pressed={activeView === "inbox"} onClick={() => selectView("inbox")} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${activeView === "inbox" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted"}`}><CircleHelp aria-hidden="true" className="size-4" />Question topics<Badge variant="secondary" className="ml-auto">{unansweredCount}</Badge></button>
+            <button type="button" aria-pressed={activeView === "handbook"} onClick={() => selectView("handbook")} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${activeView === "handbook" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted"}`}><BookOpen aria-hidden="true" className="size-4" />Handbook</button>
           </nav>
           <div className="mt-auto border-t pt-4"><a href="/admin/settings" className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"><Settings2 className="size-4" />Center settings</a><p className="mt-3 truncate px-3 text-xs text-muted-foreground">{data?.center.name ?? "Center knowledge"}</p></div>
         </aside>
         <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur sm:px-8"><div className="text-sm font-medium text-muted-foreground">Center workspace</div><div className="flex items-center gap-3"><a href="/admin/settings" aria-label="Center settings" className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"><Settings2 className="size-4" /></a><span className="text-sm font-semibold">Center staff</span></div></header>
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur sm:px-8"><div className="text-sm font-medium text-muted-foreground">Center workspace</div><a href="/admin/settings" aria-label="Center settings" className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"><Settings2 className="size-4" /></a></header>
         <nav aria-label="Mobile admin navigation" className="flex gap-2 overflow-x-auto border-b bg-card px-4 py-2 md:hidden">
-          <Button type="button" size="sm" variant={activeView === "stream" ? "default" : "outline"} onClick={() => { setActiveView("stream"); setIsEditing(false) }}>Questions</Button>
-          <Button type="button" size="sm" variant={activeView === "inbox" ? "default" : "outline"} onClick={() => { setActiveView("inbox"); setIsEditing(false) }}>Topics ({unansweredCount})</Button>
-          <Button type="button" size="sm" variant={activeView === "handbook" ? "default" : "outline"} onClick={() => { setActiveView("handbook"); setIsEditing(false) }}>Handbook</Button>
+          <Button type="button" aria-pressed={activeView === "stream"} size="sm" variant={activeView === "stream" ? "default" : "outline"} onClick={() => selectView("stream")}>Questions</Button>
+          <Button type="button" aria-pressed={activeView === "inbox"} size="sm" variant={activeView === "inbox" ? "default" : "outline"} onClick={() => selectView("inbox")}>Topics ({unansweredCount})</Button>
+          <Button type="button" aria-pressed={activeView === "handbook"} size="sm" variant={activeView === "handbook" ? "default" : "outline"} onClick={() => selectView("handbook")}>Handbook</Button>
         </nav>
 
       <main className="mx-auto max-w-[1200px] px-4 py-7 sm:px-8 lg:py-9">
         <div className="mb-6 flex flex-col justify-between gap-4 border-b pb-6 sm:flex-row sm:items-end">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Good morning, team</h1>
-            <p className="mt-2 max-w-2xl text-muted-foreground">See what families are asking, keep your handbook up to date, and get the right answer to the front desk.</p>
+            <h1 className="text-xl font-bold tracking-tight sm:text-3xl">Good morning, team</h1>
+            <p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">See what families are asking, keep your handbook up to date, and get the right answer to the front desk.</p>
           </div>
           <Button onClick={() => openNewEntry()} className="gap-2"><Plus className="h-4 w-4" /> Add an answer</Button>
         </div>
@@ -493,14 +527,14 @@ export default function AdminConsole() {
         {loadError && <Alert variant="destructive" className="mb-5"><CircleHelp className="h-4 w-4" /><AlertTitle>Couldn’t load your center data</AlertTitle><AlertDescription className="flex flex-wrap items-center justify-between gap-3">{loadError}<Button variant="outline" size="sm" onClick={() => void loadData()}>Try again</Button></AlertDescription></Alert>}
 
         <section className="mb-6 grid gap-3 sm:grid-cols-3">
-          <MetricCard icon={<MessageCircle />} label="Family questions" value={isLoading ? "—" : String(questionTotal)} footnote="Across tracked topics" />
-          <MetricCard icon={<CircleHelp />} label="Need your answer" value={isLoading ? "—" : String(unansweredCount)} footnote="Topics without an approved answer" />
-          <MetricCard icon={<BookOpen />} label="In the handbook" value={isLoading ? "—" : String(data?.knowledge.length ?? 0)} footnote="Published center answers" />
+          <MetricCard icon={<MessageCircle />} label="Family questions" value={isLoading ? "—" : String(questionTotal)} footnote="Across tracked topics" isActive={activeView === "stream"} onClick={() => selectView("stream")} />
+          <MetricCard icon={<CircleHelp />} label="Need your answer" value={isLoading ? "—" : String(unansweredCount)} footnote="Topics without an approved answer" isActive={activeView === "inbox"} onClick={() => selectView("inbox")} />
+          <MetricCard icon={<BookOpen />} label="In the handbook" value={isLoading ? "—" : String(data?.knowledge.length ?? 0)} footnote="Published center answers" isActive={activeView === "handbook"} onClick={() => selectView("handbook")} />
         </section>
 
         <section aria-labelledby="recommendations-heading" className="mb-6 overflow-hidden rounded-xl border bg-card shadow-sm">
           <div className="flex flex-col gap-2 border-b px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
-            <div><h2 id="recommendations-heading" className="text-xl font-bold">Recommended updates</h2><p className="mt-1 text-sm text-muted-foreground">Review suggested answers before they appear in your family handbook.</p></div>
+            <div><h2 id="recommendations-heading" className="text-lg font-bold sm:text-xl">Recommended updates</h2><p className="mt-1 text-sm text-muted-foreground">Review suggested answers before they appear in your family handbook.</p></div>
             <span className="rounded-full bg-primary/10 px-2.5 py-1 text-sm font-semibold text-primary">{recommendations.length} to review</span>
           </div>
           {recommendationError && <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3 text-sm text-destructive" role="alert">{recommendationError}<Button variant="outline" size="sm" onClick={() => void loadRecommendations()}>Try again</Button></div>}
@@ -508,11 +542,12 @@ export default function AdminConsole() {
           {isLoadingRecommendations && recommendations.length === 0 ? <div className="px-5 py-6 text-sm text-muted-foreground"><LoaderCircle className="mr-2 inline size-4 animate-spin" />Looking for useful FAQ updates…</div> : visibleRecommendations.length ? <div className="divide-y divide-border">{visibleRecommendations.map((recommendation) => <article key={recommendation.id} className="relative grid gap-4 px-5 py-4 pl-7 lg:grid-cols-[minmax(0,1fr)_auto]"><span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${recommendation.requiresStaffInput ? "bg-amber-500" : "bg-emerald-500"}`} /><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Badge variant="outline" className={recommendation.requiresStaffInput ? "border-amber-300 bg-amber-50 text-amber-800" : "border-emerald-300 bg-emerald-50 text-emerald-800"}>{recommendation.requiresStaffInput ? <><CircleHelp className="mr-1 size-3.5" />Needs staff</> : <><CheckCircle2 className="mr-1 size-3.5" />Ready to publish</>}</Badge><span className="text-xs text-muted-foreground">{recommendation.category} · {recommendation.operation === "update" ? "Update existing section" : recommendation.kind === "handbook_update" ? "Handbook article" : "New FAQ"}</span></div><h3 className="mt-2 font-semibold leading-snug">{recommendation.title}</h3><p className="mt-1 text-sm text-muted-foreground">{recommendation.shortAnswer}</p><p className="mt-2 text-xs leading-relaxed text-muted-foreground">{humanizeEvidence(Array.isArray(recommendation.evidence) ? recommendation.evidence.join(" · ") : recommendation.evidence)}</p><p className="mt-1 text-xs text-muted-foreground">{recommendation.requiresStaffInput ? "Needs center details" : <>Source: {recommendation.sourceKnowledgeId ? <a href={`/handbook/${encodeURIComponent(recommendation.sourceKnowledgeId)}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{recommendation.sourceLabel}</a> : recommendation.sourceLabel}</>}</p></div><div className="flex flex-wrap items-center gap-2 lg:justify-end"><Button size="sm" className="gap-1.5" disabled={recommendationActionId === recommendation.id || recommendation.requiresStaffInput} onClick={() => void updateRecommendation(recommendation.id, "approve")}><Check className="size-4" />Approve</Button><Button size="sm" variant="outline" disabled={recommendationActionId === recommendation.id} onClick={() => { setEditingRecommendationId(recommendation.id); setDraft({ title: recommendation.title, shortAnswer: recommendation.shortAnswer, answer: recommendation.answer, sourceLabel: recommendation.sourceLabel, category: recommendation.category, isFeatured: recommendation.isFeatured, startsAt: toDateInput(recommendation.startsAt), endsAt: toDateInput(recommendation.endsAt), topicId: recommendation.topicId }); setSaveError(""); setIsEditing(true) }}>Edit</Button><Button size="sm" variant="ghost" disabled={recommendationActionId === recommendation.id} onClick={() => void updateRecommendation(recommendation.id, "dismiss")}>Dismiss</Button></div></article>)}</div> : <p className="px-5 py-6 text-sm text-muted-foreground">{recommendations.length ? "No recommendations match these filters." : "No updates need review right now. New suggestions will appear as families ask questions the handbook could answer better."}</p>}
         </section>
 
+        <div ref={viewPanelRef} className="scroll-mt-20">
         {isLoading && !data ? <Card className="flex min-h-72 items-center justify-center"><div className="flex items-center gap-3 text-muted-foreground"><LoaderCircle className="h-5 w-5 animate-spin" /> Loading your center…</div></Card> : activeView === "stream" ? (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
             <Card className="min-w-0 shadow-sm">
                 <CardHeader className="border-b-2 pb-4">
-                <CardTitle className="text-xl font-bold">What families are asking</CardTitle>
+                <CardTitle className="text-lg font-bold sm:text-xl">What families are asking</CardTitle>
                 <CardDescription className="text-sm">Recent parent questions update every 15 seconds. Private child questions appear without names or message details.</CardDescription>
               </CardHeader>
               <div className="divide-y-2 divide-border">
@@ -523,10 +558,10 @@ export default function AdminConsole() {
                         <Badge variant="outline" className={event.outcome === "answered" ? "bg-brand-teal text-foreground" : "bg-brand-amber text-foreground"}>{event.outcome === "answered" ? "Answered" : "Needs staff"}</Badge>
                         <span className="text-xs text-muted-foreground">{formatQuestionTime(event.askedAt)}</span>
                       </div>
-                      <p className="text-base font-semibold leading-snug">{event.question}</p>
+                      <p className="text-sm font-semibold leading-snug sm:text-base">{event.question}</p>
                       <p className="mt-1 text-sm text-muted-foreground">{event.topicTitle ? `Topic: ${event.topicTitle}` : "Private family question"} · {event.sourceStatus === "sourced" ? "Sourced answer" : "No verified source"}</p>
                     </div>
-                    {event.topicId ? <Button variant="outline" size="sm" className="shrink-0 self-start" onClick={() => { setSelectedTopicId(event.topicId); setActiveView("inbox") }}>Review topic<ChevronRight data-icon="inline-end" /></Button> : null}
+                    {event.topicId ? <Button variant="outline" size="sm" className="shrink-0 self-start" onClick={() => { setSelectedTopicId(event.topicId); selectView("inbox") }}>Review topic<ChevronRight data-icon="inline-end" /></Button> : null}
                   </div>
                 )) : <div className="p-8 text-center text-sm text-muted-foreground">New parent questions will appear here as they are asked.</div>}
               </div>
@@ -534,7 +569,7 @@ export default function AdminConsole() {
             </Card>
             <Card className="self-start bg-accent">
               <CardHeader><CardTitle className="text-lg font-bold">Turn demand into answers</CardTitle><CardDescription className="text-foreground">Questions with no verified source become topics for your team to review.</CardDescription></CardHeader>
-              <CardContent className="space-y-3"><p className="text-sm">{unansweredCount} topics need an approved answer. Similar questions are grouped so one handbook update can help many families.</p><Button variant="outline" className="w-full bg-card" onClick={() => setActiveView("inbox")}>Review topics<ArrowUpRight data-icon="inline-end" /></Button></CardContent>
+              <CardContent className="space-y-3"><p className="text-sm">{unansweredCount} topics need an approved answer. Similar questions are grouped so one handbook update can help many families.</p><Button variant="outline" className="w-full bg-card" onClick={() => selectView("inbox")}>Review topics<ArrowUpRight data-icon="inline-end" /></Button></CardContent>
             </Card>
           </div>
         ) : activeView === "inbox" ? (
@@ -565,7 +600,7 @@ export default function AdminConsole() {
                 {selectedTopic ? <>
                   <CardHeader>
                     <div className="mb-2 flex items-center justify-between gap-3"><Badge variant={statusVariant(selectedTopic.status)}>{statusLabel(selectedTopic.status)}</Badge><span className="text-xs text-muted-foreground">Last asked {formatRelativeTime(selectedTopic.lastAskedAt).toLowerCase()}</span></div>
-                    <CardTitle className="text-xl leading-snug">{selectedTopic.title}</CardTitle>
+                    <CardTitle className="text-lg leading-snug sm:text-xl">{selectedTopic.title}</CardTitle>
                     <CardDescription className="flex flex-wrap gap-x-3 gap-y-1 pt-1"><span>{selectedTopic.questionCount} questions</span><span>·</span><span>{selectedTopic.sessionCount} anonymous sessions</span></CardDescription>
                   </CardHeader>
                   <CardContent className="flex flex-col gap-5">
@@ -583,17 +618,18 @@ export default function AdminConsole() {
         ) : (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
             <Card className="shadow-sm">
-              <CardHeader className="flex-row items-center justify-between gap-4 border-b pb-4"><div><CardTitle className="text-lg">Center handbook</CardTitle><CardDescription className="mt-1">Approved answers, sourced to your center’s policies and updates.</CardDescription></div><Button size="sm" onClick={() => openNewEntry()}><Plus className="mr-1 h-4 w-4" /> Add answer</Button></CardHeader>
+              <CardHeader className="flex-row items-center justify-between gap-4 border-b pb-4"><div><CardTitle className="text-base sm:text-lg">Center handbook</CardTitle><CardDescription className="mt-1">Approved answers, sourced to your center’s policies and updates.</CardDescription></div><Button size="sm" onClick={() => openNewEntry()}><Plus className="mr-1 h-4 w-4" /> Add answer</Button></CardHeader>
               <div className="divide-y">{(data?.knowledge ?? []).map((entry) => <button key={entry.id} onClick={() => openEntry(entry)} className="flex w-full items-start justify-between gap-4 px-5 py-4 text-left hover:bg-muted/40"><div className="min-w-0"><div className="mb-1 flex flex-wrap items-center gap-2"><span className="font-medium">{entry.title}</span>{entry.isFeatured && <Badge variant="secondary" className="text-[10px]">Front desk</Badge>}</div><p className="line-clamp-2 text-sm text-muted-foreground">{entry.shortAnswer}</p><span className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground"><FileText className="h-3.5 w-3.5" />{entry.sourceLabel}</span></div><ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" /></button>)}{!data?.knowledge.length && <div className="p-10 text-center text-sm text-muted-foreground">Your handbook is ready for its first approved answer.</div>}</div>
             </Card>
             <div className="space-y-5"><SeasonalPanel suggestions={seasonalIdeas} isLoading={assistMode === "seasonal"} error={assistResultMode === "seasonal" ? assistError : ""} onSuggest={() => void askAssistant("seasonal")} onAdd={(title) => openNewEntry({ title, category: "Seasonal" })} /><Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Lightbulb className="h-4 w-4 text-primary" /> Keep answers current</CardTitle><CardDescription>Seasonal answers show only during the dates you choose.</CardDescription></CardHeader><CardContent><p className="text-sm text-muted-foreground">Use effective dates for holidays, weather closures, and school calendar changes. The front desk can show the short answer while parents can open the full policy and source.</p></CardContent></Card></div>
           </div>
         )}
+        </div>
       </main>
 
       {isEditing && <div className="fixed inset-0 z-40 flex justify-end bg-foreground/20" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setIsEditing(false) }}>
         <section role="dialog" aria-modal="true" aria-labelledby="editor-heading" className="flex h-full w-full max-w-lg flex-col overflow-y-auto border-l bg-background">
-          <div className="flex items-start justify-between border-b px-6 py-5"><div><h2 id="editor-heading" className="text-xl font-semibold">{editingRecommendationId ? "Edit recommended content" : draft.id ? "Edit answer" : "Add an answer"}</h2><p className="mt-1 text-sm text-muted-foreground">{editingRecommendationId ? "Save your edits to the recommendation, then approve it to publish." : "Everything here is reviewed by your team before families see it."}</p></div><Button variant="ghost" size="sm" onClick={() => { setIsEditing(false); setEditingRecommendationId(null) }}>Close</Button></div>
+          <div className="flex items-start justify-between border-b px-6 py-5"><div><h2 id="editor-heading" className="text-lg font-semibold sm:text-xl">{editingRecommendationId ? "Edit recommended content" : draft.id ? "Edit answer" : "Add an answer"}</h2><p className="mt-1 text-sm text-muted-foreground">{editingRecommendationId ? "Save your edits to the recommendation, then approve it to publish." : "Everything here is reviewed by your team before families see it."}</p></div><Button variant="ghost" size="sm" onClick={() => { setIsEditing(false); setEditingRecommendationId(null) }}>Close</Button></div>
           <form onSubmit={saveKnowledge} className="flex min-h-0 flex-1 flex-col">
             <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
               {saveError && <Alert variant="destructive"><CircleHelp className="h-4 w-4" /><AlertTitle>Couldn’t save this answer</AlertTitle><AlertDescription>{saveError}</AlertDescription></Alert>}
@@ -621,8 +657,8 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   return <div className="space-y-1.5"><label className="block text-sm font-medium">{label}</label>{children}{hint && <p className="text-xs text-muted-foreground">{hint}</p>}</div>
 }
 
-function MetricCard({ icon, label, value, footnote }: { icon: React.ReactNode; label: string; value: string; footnote: string }) {
-  return <Card><CardContent className="flex items-start justify-between p-4"><div><p className="text-sm text-muted-foreground">{label}</p><p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{value}</p><p className="mt-1 text-xs text-muted-foreground">{footnote}</p></div><span className="flex size-8 items-center justify-center border text-primary">{icon}</span></CardContent></Card>
+function MetricCard({ icon, label, value, footnote, isActive, onClick }: { icon: React.ReactNode; label: string; value: string; footnote: string; isActive: boolean; onClick: () => void }) {
+  return <button type="button" aria-pressed={isActive} onClick={onClick} className="group rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><Card className={`h-full transition-colors group-hover:border-primary/40 ${isActive ? "border-primary/50 bg-accent/30" : ""}`}><CardContent className="flex items-start justify-between p-4"><div><p className="text-sm text-muted-foreground">{label}</p><p className="mt-1 text-xl font-semibold tracking-tight tabular-nums sm:text-2xl">{value}</p><p className="mt-1 text-xs text-muted-foreground">{footnote}</p><span className="mt-3 inline-block text-xs font-medium text-primary">View {label === "Family questions" ? "questions" : label === "Need your answer" ? "topics" : "handbook"}<span aria-hidden="true"> →</span></span></div><span className="flex size-8 items-center justify-center border bg-background text-primary">{icon}</span></CardContent></Card></button>
 }
 
 function SeasonalPanel({ suggestions, isLoading, error, onSuggest, onAdd }: { suggestions: Suggestion[]; isLoading: boolean; error: string; onSuggest: () => void; onAdd: (title: string) => void }) {

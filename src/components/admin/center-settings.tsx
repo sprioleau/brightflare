@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { BookOpen, LayoutDashboard, Settings2 } from "lucide-react";
+import { BookOpen, CircleHelp, MessageCircle, Settings2 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,40 +65,48 @@ export default function CenterSettings() {
     }
   }
 
-  return <div className="min-h-screen bg-muted/30 text-foreground"><div className="mx-auto grid min-h-screen max-w-6xl md:grid-cols-[14rem_minmax(0,1fr)]">
-    <aside className="flex flex-col border-b bg-card p-5 md:min-h-screen md:border-r md:border-b-0">
-      <Link href="/admin" aria-label="Brightflare admin home"><Logo size={32} /></Link>
-      <p className="mt-2 text-sm text-muted-foreground">{settings?.name ?? "Center workspace"}</p>
-      <nav aria-label="Admin navigation" className="mt-8 flex flex-col gap-1">
-        <Link href="/admin" className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-muted"><LayoutDashboard aria-hidden="true" className="size-4" />Overview</Link>
-        <Link href="/handbook" className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-muted"><BookOpen aria-hidden="true" className="size-4" />Family handbook</Link>
-      </nav>
-      <Link href="/admin/settings" aria-current="page" className="mt-6 flex items-center gap-3 rounded-md bg-muted px-3 py-2 text-sm font-semibold text-primary md:mt-auto"><Settings2 aria-hidden="true" className="size-4" />Settings</Link>
-    </aside>
-    <main className="min-w-0 px-5 py-8 md:px-8">
-      <div className="mb-8"><p className="text-sm text-muted-foreground">Center workspace</p><h1 className="mt-1 text-3xl font-semibold tracking-tight">Settings</h1><p className="mt-2 text-muted-foreground">Keep center details and Brightflare’s writing guidance current.</p></div>
-      {error ? <p role="alert" className="mb-5 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{error}{!settings ? <> <Link href="/admin" className="font-semibold underline">Go to sign in</Link></> : null}</p> : null}
-      {!settings && !error ? <p role="status">Loading center settings…</p> : null}
-      {settings ? <form onSubmit={save} className="flex max-w-3xl flex-col gap-6">
-        <Card><CardHeader><CardTitle>Center information</CardTitle><CardDescription>Families see these details at the front desk and in the handbook.</CardDescription></CardHeader><CardContent className="grid gap-5 sm:grid-cols-2">
-          <div className="sm:col-span-2"><TextField label="Center name" value={settings.name} onChange={(value) => update("name", value)} /></div>
-          <div className="sm:col-span-2"><TextField label="Hours" value={settings.hours} onChange={(value) => update("hours", value)} hint="Include days and opening times. Confirm holiday exceptions in the handbook." /></div>
-          <div className="sm:col-span-2"><TextField label="Tagline" value={settings.tagline} onChange={(value) => update("tagline", value)} /></div>
-          <TextField label="Time zone" value={settings.timezone} onChange={(value) => update("timezone", value)} />
-          <TextField label="Handbook title" value={settings.handbookLabel} onChange={(value) => update("handbookLabel", value)} />
-          <div className="sm:col-span-2"><TextField label="Center website" value={settings.websiteUrl} onChange={(value) => update("websiteUrl", value)} hint="Optional external reference. Published handbook answers remain available in Brightflare." /></div>
-        </CardContent></Card>
-        <Card><CardHeader><CardTitle>Agent writing guidance</CardTitle><CardDescription>Brightflare uses this guidance when drafting answers and recommended handbook updates. Staff review changes before publication.</CardDescription></CardHeader><CardContent className="grid gap-5">
-          <TextField label="Tone of voice" value={settings.tone} onChange={(value) => update("tone", value)} />
-          <TextField label="Audience" value={settings.audience} onChange={(value) => update("audience", value)} />
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="flex flex-col gap-2"><Label htmlFor="preferred-terms">Preferred terms</Label><Textarea id="preferred-terms" rows={4} value={settings.preferredTerms.join("\n")} onChange={(event) => update("preferredTerms", splitLines(event.target.value))} /><p className="text-sm text-muted-foreground">One term per line.</p></div>
-            <div className="flex flex-col gap-2"><Label htmlFor="forbidden-terms">Terms to avoid</Label><Textarea id="forbidden-terms" rows={4} value={settings.forbiddenTerms.join("\n")} onChange={(event) => update("forbiddenTerms", splitLines(event.target.value))} /><p className="text-sm text-muted-foreground">One term per line.</p></div>
-          </div>
-          <div className="flex flex-col gap-2"><Label htmlFor="center-glossary">Center glossary</Label><Textarea id="center-glossary" rows={4} value={settings.glossary.map(({ term, definition }) => `${term}: ${definition}`).join("\n")} onChange={(event) => update("glossary", splitLines(event.target.value).map((line) => { const [term, ...definition] = line.split(":"); return { term: term.trim(), definition: definition.join(":").trim() }; }).filter(({ term, definition }) => term && definition))} /><p className="text-sm text-muted-foreground">One entry per line: term: meaning.</p></div>
-        </CardContent></Card>
-        <div className="flex items-center gap-4"><Button type="submit" disabled={isSaving}>{isSaving ? "Saving…" : "Save settings"}</Button>{message ? <p role="status" className="text-sm text-emerald-700">{message}</p> : null}</div>
-      </form> : null}
-    </main>
-  </div></div>;
+  return <div className="min-h-screen bg-muted/30 text-foreground">
+    <div className="mx-auto flex min-h-screen max-w-[1440px] bg-background shadow-sm">
+      <aside className="sticky top-0 flex h-screen w-[220px] shrink-0 flex-col border-r bg-card px-3 py-5 max-md:hidden">
+        <Link href="/admin" className="mb-8 flex items-center gap-3 rounded-lg px-2 py-1.5" aria-label="Brightflare Admin home"><Logo size={32} variant="mark" /><span className="font-bold tracking-tight">brightflare <span className="font-medium text-muted-foreground">Admin</span></span></Link>
+        <div className="mb-3 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Workspace</div>
+        <nav aria-label="Admin navigation" className="space-y-1">
+          <Link href="/admin?view=stream" className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><MessageCircle aria-hidden="true" className="size-4" />Questions</Link>
+          <Link href="/admin?view=inbox" className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><CircleHelp aria-hidden="true" className="size-4" />Question topics</Link>
+          <Link href="/admin?view=handbook" className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><BookOpen aria-hidden="true" className="size-4" />Handbook</Link>
+        </nav>
+        <Link href="/admin/settings" aria-current="page" className="mt-auto flex items-center gap-3 rounded-md bg-accent px-3 py-2.5 text-sm font-semibold text-accent-foreground"><Settings2 aria-hidden="true" className="size-4" />Center settings</Link>
+        <p className="mt-3 truncate px-3 text-xs text-muted-foreground">{settings?.name ?? "Center knowledge"}</p>
+      </aside>
+      <div className="min-w-0 flex-1">
+        <header className="sticky top-0 z-20 flex h-14 items-center border-b bg-background/95 px-4 backdrop-blur sm:px-8"><div className="text-sm font-medium text-muted-foreground">Center workspace</div></header>
+        <nav aria-label="Mobile admin navigation" className="flex gap-2 overflow-x-auto border-b bg-card px-4 py-2 md:hidden"><Link href="/admin?view=stream" className="inline-flex h-8 items-center rounded-md border px-3 text-sm font-medium">Questions</Link><Link href="/admin?view=inbox" className="inline-flex h-8 items-center rounded-md border px-3 text-sm font-medium">Topics</Link><Link href="/admin?view=handbook" className="inline-flex h-8 items-center rounded-md border px-3 text-sm font-medium">Handbook</Link><span aria-current="page" className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground">Settings</span></nav>
+        <main className="min-w-0 px-4 py-7 sm:px-8 lg:py-9">
+          <div className="mb-8 border-b pb-6"><h1 className="text-xl font-bold tracking-tight sm:text-3xl">Settings</h1><p className="mt-2 max-w-3xl text-sm sm:text-base text-muted-foreground">Keep center details and Brightflare’s writing guidance current.</p></div>
+          {error ? <p role="alert" className="mb-5 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{error}{!settings ? <> <Link href="/admin" className="font-semibold underline">Go to sign in</Link></> : null}</p> : null}
+          {!settings && !error ? <p role="status">Loading center settings…</p> : null}
+          {settings ? <form onSubmit={save} className="flex max-w-[1200px] flex-col gap-6">
+            <Card><CardHeader><CardTitle>Center information</CardTitle><CardDescription>Families see these details at the front desk and in the handbook.</CardDescription></CardHeader><CardContent className="grid gap-5 sm:grid-cols-2">
+              <div className="sm:col-span-2"><TextField label="Center name" value={settings.name} onChange={(value) => update("name", value)} /></div>
+              <div className="sm:col-span-2"><TextField label="Hours" value={settings.hours} onChange={(value) => update("hours", value)} hint="Include days and opening times. Confirm holiday exceptions in the handbook." /></div>
+              <div className="sm:col-span-2"><TextField label="Tagline" value={settings.tagline} onChange={(value) => update("tagline", value)} /></div>
+              <TextField label="Time zone" value={settings.timezone} onChange={(value) => update("timezone", value)} />
+              <TextField label="Handbook title" value={settings.handbookLabel} onChange={(value) => update("handbookLabel", value)} />
+              <div className="sm:col-span-2"><TextField label="Center website" value={settings.websiteUrl} onChange={(value) => update("websiteUrl", value)} hint="Optional external reference. Published handbook answers remain available in Brightflare." /></div>
+            </CardContent></Card>
+            <Card><CardHeader><CardTitle>Agent writing guidance</CardTitle><CardDescription>Brightflare uses this guidance when drafting answers and recommended handbook updates. Staff review changes before publication.</CardDescription></CardHeader><CardContent className="grid gap-5">
+              <TextField label="Tone of voice" value={settings.tone} onChange={(value) => update("tone", value)} />
+              <TextField label="Audience" value={settings.audience} onChange={(value) => update("audience", value)} />
+              <div className="grid gap-5 sm:grid-cols-2">
+                <div className="flex flex-col gap-2"><Label htmlFor="preferred-terms">Preferred terms</Label><Textarea id="preferred-terms" rows={4} value={settings.preferredTerms.join("\n")} onChange={(event) => update("preferredTerms", splitLines(event.target.value))} /><p className="text-sm text-muted-foreground">One term per line.</p></div>
+                <div className="flex flex-col gap-2"><Label htmlFor="forbidden-terms">Terms to avoid</Label><Textarea id="forbidden-terms" rows={4} value={settings.forbiddenTerms.join("\n")} onChange={(event) => update("forbiddenTerms", splitLines(event.target.value))} /><p className="text-sm text-muted-foreground">One term per line.</p></div>
+              </div>
+              <div className="flex flex-col gap-2"><Label htmlFor="center-glossary">Center glossary</Label><Textarea id="center-glossary" rows={4} value={settings.glossary.map(({ term, definition }) => `${term}: ${definition}`).join("\n")} onChange={(event) => update("glossary", splitLines(event.target.value).map((line) => { const [term, ...definition] = line.split(":"); return { term: term.trim(), definition: definition.join(":").trim() }; }).filter(({ term, definition }) => term && definition))} /><p className="text-sm text-muted-foreground">One entry per line: term: meaning.</p></div>
+            </CardContent></Card>
+            <div className="flex items-center gap-4"><Button type="submit" disabled={isSaving}>{isSaving ? "Saving…" : "Save settings"}</Button>{message ? <p role="status" className="text-sm text-emerald-700">{message}</p> : null}</div>
+          </form> : null}
+        </main>
+      </div>
+    </div>
+  </div>;
 }

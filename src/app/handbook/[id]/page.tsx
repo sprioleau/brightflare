@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BookOpen } from "lucide-react";
+import { ArrowLeft, BookOpen, ChevronRight } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { getPublicHandbook } from "@/lib/public-handbook";
 
@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: HandbookSectionProps): Promis
   const handbook = await getPublicHandbook();
   const entry = handbook?.entries.find((item) => item.id === id);
   return {
-    title: entry ? `${entry.title} | ${handbook?.center.name} handbook` : "Handbook section | brightflare",
+    title: entry ? `${entry.title} | ${handbook?.center.handbookLabel ?? "Family handbook"}` : "Handbook section | brightflare",
     description: entry?.shortAnswer,
   };
 }
@@ -24,21 +24,46 @@ export default async function HandbookSectionPage({ params }: HandbookSectionPro
   const handbook = await getPublicHandbook();
   const entry = handbook?.entries.find((item) => item.id === id);
   if (!handbook || !entry) notFound();
-  return <main className="min-h-screen bg-background text-foreground">
-    <header className="border-b bg-card"><div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-5 py-4">
-      <Link href="/" aria-label="Brightflare family desk"><Logo size={32} /></Link>
-      <Link href="/handbook" className="text-sm font-medium text-primary hover:underline">Family handbook</Link>
-    </div></header>
-    <article className="mx-auto max-w-3xl px-5 py-10">
-      <Link href="/handbook" className="inline-flex items-center gap-2 text-sm text-primary hover:underline"><ArrowLeft aria-hidden="true" className="size-4" />All sections</Link>
-      <p className="mt-10 text-sm text-muted-foreground">{handbook.center.name} · {entry.category}</p>
-      <h1 className="mt-2 text-4xl font-semibold tracking-tight">{entry.title}</h1>
-      <p className="mt-5 text-lg font-medium leading-8">{entry.shortAnswer}</p>
-      <div className="mt-8 border-t pt-8"><p className="whitespace-pre-wrap text-base leading-8">{entry.answer}</p></div>
-      <div className="mt-10 flex items-start gap-3 rounded-lg border bg-card p-4 text-sm">
-        <BookOpen aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
-        <div><p className="font-medium">Source: {entry.sourceLabel}</p><p className="mt-1 text-muted-foreground">Reviewed {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(entry.reviewedAt))}</p></div>
+
+  return <main className="min-h-screen bg-muted/40 text-foreground">
+    <header className="border-b bg-card">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+        <Link href="/" aria-label="Brightflare family desk"><Logo size={32} /></Link>
+        <Link href="/handbook" className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">{handbook.center.handbookLabel}</Link>
       </div>
-    </article>
+    </header>
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8">
+      <div className="mb-5 sm:mb-8">
+        <Link href="/handbook" className="inline-flex min-h-10 items-center gap-2 rounded-md px-2 text-sm font-medium text-primary hover:bg-card hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ArrowLeft aria-hidden="true" className="size-4" />All sections</Link>
+      </div>
+      <div className="grid items-start gap-5 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8">
+        <details className="group rounded-xl border bg-card p-4 shadow-sm lg:hidden">
+          <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between font-semibold [&::-webkit-details-marker]:hidden">
+            <span>Browse {handbook.center.handbookLabel}</span><ChevronRight aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open:rotate-90" />
+          </summary>
+          <ul aria-label="Handbook sections" className="mt-3 grid gap-1 border-t pt-3">
+            {handbook.entries.map((item) => <li key={item.id}>
+              <Link href={`/handbook/${item.id}`} aria-current={item.id === entry.id ? "page" : undefined} className="flex min-h-11 items-center gap-2 rounded-md px-2 text-sm leading-5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground aria-[current=page]:bg-primary/10 aria-[current=page]:font-medium aria-[current=page]:text-primary"><ChevronRight aria-hidden="true" className="size-4 shrink-0" />{item.title}</Link>
+            </li>)}
+          </ul>
+        </details>
+        <nav aria-label="Handbook sections" className="sticky top-5 hidden h-fit rounded-xl border bg-card p-4 shadow-sm lg:block">
+          <h2 className="mb-3 px-2 text-sm font-semibold">{handbook.center.handbookLabel}</h2>
+          <ul className="space-y-1">{handbook.entries.map((item) => <li key={item.id}>
+            <Link href={`/handbook/${item.id}`} aria-current={item.id === entry.id ? "page" : undefined} className="flex min-h-10 items-start gap-2 rounded-md px-2 py-2 text-sm leading-5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground aria-[current=page]:bg-primary/10 aria-[current=page]:font-medium aria-[current=page]:text-primary"><ChevronRight aria-hidden="true" className="mt-0.5 size-4 shrink-0" />{item.title}</Link>
+          </li>)}</ul>
+        </nav>
+        <article className="min-w-0 rounded-xl border bg-card p-5 shadow-sm sm:p-8 lg:p-10">
+          <p className="text-sm font-medium text-muted-foreground">{handbook.center.name}<span aria-hidden="true"> · </span>{entry.category}</p>
+          <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-4xl">{entry.title}</h1>
+          <p className="mt-5 max-w-3xl text-[0.9375rem] font-medium leading-7 sm:text-lg sm:leading-8">{entry.shortAnswer}</p>
+          <div className="mt-7 border-t pt-6 sm:mt-9 sm:pt-8"><p className="max-w-3xl whitespace-pre-wrap text-[0.9375rem] leading-7 sm:text-[1.0625rem] sm:leading-8">{entry.answer}</p></div>
+          <div className="mt-8 flex items-start gap-3 rounded-lg border bg-muted/40 p-4 text-sm sm:mt-10">
+            <BookOpen aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+            <div><p className="font-medium">Source: {entry.sourceLabel}</p><p className="mt-1 text-muted-foreground">Reviewed {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(entry.reviewedAt))}</p></div>
+          </div>
+        </article>
+      </div>
+    </div>
   </main>;
 }
