@@ -1,26 +1,30 @@
-# brightflare
+<p align="left">
+  <img src="public/assets/brightflare-logo-full.svg" alt="brightflare" width="360" />
+</p>
 
-**A calmer front desk for childcare families.** Brightflare answers routine questions from a center-approved handbook, shows families where an answer came from, and gives staff a clear path to review the questions the handbook could not resolve.
+**A calmer front desk for childcare families.** brightflare answers routine questions from a center-approved handbook, shows families where an answer came from, and gives staff a clear path to review the questions the handbook could not resolve.
 
 **Try it:** [Family front desk](https://brightflare.sprioleau.dev/) · [Family handbook](https://brightflare.sprioleau.dev/handbook) · [Staff workspace](https://brightflare.sprioleau.dev/admin)
 
-> Brightflare is a fictional take-home prototype. Little Lantern Learning Center, its policies, staff, children, and family records are invented for demonstration. It does not connect to Brightwheel or contain real family information.
+> brightflare is a fictional take-home prototype. Little Lantern Learning Center, its policies, staff, children, and family records are invented for demonstration. It does not connect to Brightwheel or contain real family information.
+
+**Project notes:** [Build decisions](docs/build-decisions.md) · [Functionality audit](docs/functionality-audit.md) · [GitHub repository](https://github.com/sprioleau/brightflare)
 
 ## See it
 
 ### Family desk
 
-![Brightflare family desk on desktop](https://brightflare.sprioleau.dev/screenshots/parent-desktop.png?v=20260924-polish)
+![brightflare family desk on desktop](https://brightflare.sprioleau.dev/screenshots/parent-desktop.png?v=20260924-polish)
 
-![Brightflare family desk on a phone](https://brightflare.sprioleau.dev/screenshots/parent-mobile.png?v=20260924-polish)
+![brightflare family desk on a phone](https://brightflare.sprioleau.dev/screenshots/parent-mobile.png?v=20260924-polish)
 
 ### Staff workspace
 
-![Brightflare staff dashboard](https://brightflare.sprioleau.dev/screenshots/admin-dashboard.png?v=20260924-polish)
+![brightflare staff dashboard](https://brightflare.sprioleau.dev/screenshots/admin-dashboard.png?v=20260924-polish)
 
 ### Family handbook
 
-![Brightflare family handbook](https://brightflare.sprioleau.dev/screenshots/handbook-desktop.png?v=20260924-polish)
+![brightflare family handbook](https://brightflare.sprioleau.dev/screenshots/handbook-desktop.png?v=20260924-polish)
 
 These captures show the current app. Any standalone HTML style explorations are design proposals and are not part of the live interface.
 
