@@ -37,6 +37,20 @@ afterEach(() => {
 });
 
 describe("parent front desk", () => {
+  it("reveals short FAQ previews first on mobile, then opens the full sourced answer", async () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
+    vi.stubGlobal("fetch", vi.fn(() => jsonResponse(deskResponse)));
+
+    render(<ParentDesk />);
+    const faq = await screen.findByRole("button", { name: /what time do you close/i });
+    expect(faq).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(faq);
+    expect(faq).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Read full answer" }));
+    expect(screen.getByText("The center closes at 5:30 PM Monday through Friday.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Popular questions" })).toBeInTheDocument();
+  });
+
   it("shows separate FAQ previews and opens each sourced full answer", async () => {
     vi.stubGlobal("fetch", vi.fn(() => jsonResponse(deskResponse)));
 
@@ -46,14 +60,32 @@ describe("parent front desk", () => {
     fireEvent.click(screen.getByRole("button", { name: /what time do you close/i }));
 
     expect(screen.getByText("The center closes at 5:30 PM Monday through Friday.")).toBeInTheDocument();
-    expect(screen.getByText("Family Handbook · Hours")).toBeInTheDocument();
+    expect(screen.getAllByText("Family Handbook · Hours")).toHaveLength(2);
     expect(screen.getByText(/Reviewed/)).toHaveTextContent("Sep 1, 2026");
 
-    fireEvent.click(screen.getByRole("button", { name: "Back to questions" }));
     expect(screen.getByText("Bring a labeled water bottle.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /what should we bring/i }));
     expect(screen.getByText("Please bring a labeled water bottle and a change of clothes.")).toBeInTheDocument();
-    expect(screen.getByText("Family Handbook · Daily essentials")).toBeInTheDocument();
+    expect(screen.getAllByText("Family Handbook · Daily essentials")).toHaveLength(2);
+    expect(screen.getByRole("link", { name: "Read the handbook section" })).toHaveAttribute("href", "/handbook/faq-bag");
+  });
+
+  it("submits on Shift+Enter while ordinary Enter keeps a multiline question", async () => {
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(() => jsonResponse(deskResponse))
+      .mockImplementationOnce(() => jsonResponse({ answer: "We close at 5:30 PM.", sourceLabel: "Family Handbook · Hours", sourceId: "faq-hours", reviewedAt: "2026-09-01", status: "answered" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ParentDesk />);
+    await screen.findByText("We're open until 5:30 PM on weekdays.");
+    const field = screen.getByLabelText("What can we help you find?");
+    fireEvent.change(field, { target: { value: "When do you close?" } });
+    fireEvent.keyDown(field, { key: "Enter", shiftKey: false });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(field, { key: "Enter", shiftKey: true });
+    expect(await screen.findByText("We close at 5:30 PM.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Popular questions" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("requires successful center auth before submitting a child question and does not send the child's name as question data", async () => {

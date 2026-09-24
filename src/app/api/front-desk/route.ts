@@ -15,8 +15,8 @@ export async function GET() {
     return Response.json({
       center: {
         name: result.center.name,
-        tagline: "A little more clarity in every day.",
-        hours: "Monday–Friday · 7:30 AM–5:30 PM",
+        tagline: result.center.tagline,
+        hours: result.center.hours,
         handbookLabel: result.center.handbookLabel,
       },
       faqs: [...result.featured, ...result.evergreen].map((faq) => ({

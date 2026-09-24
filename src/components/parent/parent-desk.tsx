@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Logo } from "@/components/brand/Logo";
 
@@ -44,10 +43,18 @@ type Answer = {
 function getSessionId() {
   const sessionKey = "brightflare-session";
   const currentId = window.sessionStorage.getItem(sessionKey);
-  if (currentId) return currentId;
-  const createdId = window.crypto.randomUUID();
+  if (currentId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentId)) return currentId;
+  const createdId = window.crypto.randomUUID?.() ?? createFallbackUuid();
   window.sessionStorage.setItem(sessionKey, createdId);
   return createdId;
+}
+
+function createFallbackUuid() {
+  const bytes = window.crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function formatReviewDate(value: string) {
@@ -93,7 +100,7 @@ export default function ParentDesk() {
     };
   }, []);
 
-  const featuredFaqs = useMemo(() => deskData?.faqs.slice(0, 6) ?? [], [deskData]);
+  const featuredFaqs = useMemo(() => deskData?.faqs.slice(0, 8) ?? [], [deskData]);
 
   async function submitQuestion(submittedQuestion = question) {
     const trimmedQuestion = submittedQuestion.trim();
@@ -188,82 +195,77 @@ export default function ParentDesk() {
 
   const showingAnswer = Boolean(answer || selectedFaq || isAsking || askError);
 
+  useEffect(() => {
+    if (!showingAnswer || !window.matchMedia?.("(max-width: 767px)").matches) return;
+    document.getElementById("parent-answer")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [showingAnswer, answerQuestion]);
+
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="border-b-2 border-foreground bg-card">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
+      <header className="border-b bg-card">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <a className="flex items-center gap-2" href="#home" aria-label="brightflare home" onClick={closeAnswer}>
             <Logo size={32} />
+            <span className="text-sm font-semibold sm:text-base">Family Help Desk</span>
           </a>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>{deskData?.center.name ?? "Family help"}</span>
+          <div className="flex items-center gap-4 text-sm font-medium text-foreground sm:text-base">
+            <span className="hidden sm:inline">{deskData?.center.name ?? "Family Help Desk"}</span>
+            <a href="/handbook" className="text-primary underline-offset-2 hover:underline">Handbook</a>
           </div>
         </div>
       </header>
 
-      <div className="mx-auto max-w-3xl px-4 pb-12 pt-8 sm:px-6 sm:pt-10" id="home">
-        <div className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+      <div className="mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-6xl flex-col px-4 pb-5 pt-5 sm:px-6 lg:px-8" id="home">
+        <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end lg:mb-4">
           <div>
-            <span className="mb-3 inline-flex rounded-md border-2 border-foreground bg-brand-amber px-2.5 py-1 text-xs font-bold tracking-wide">FAMILY HELP DESK</span>
             <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{deskData?.center.name ?? "How can we help?"}</h1>
-            {deskData?.center.tagline ? <p className="mt-2 text-base text-muted-foreground">{deskData.center.tagline}</p> : <p className="mt-2 text-base text-muted-foreground">Quick answers for your family.</p>}
+            {deskData?.center.tagline ? <p className="mt-1 text-base text-muted-foreground">{deskData.center.tagline}</p> : <p className="mt-1 text-base text-muted-foreground">Quick answers for your family.</p>}
           </div>
-          {deskData?.center.hours ? <div className="flex items-center gap-2 self-start rounded-lg border-2 border-foreground bg-brand-teal px-3 py-2 text-sm font-semibold text-foreground sm:self-auto"><Clock3 aria-hidden="true" className="size-4" />{deskData.center.hours}</div> : null}
+          {deskData?.center.hours ? <p className="flex items-center gap-2 self-start text-sm font-semibold text-foreground sm:self-auto"><Clock3 aria-hidden="true" className="size-4" />{deskData.center.hours}</p> : null}
         </div>
 
-        {showingAnswer ? (
-          <section aria-live="polite" className="mb-8">
-            <Button variant="ghost" size="sm" className="mb-3 -ml-2" onClick={closeAnswer}><ArrowLeft data-icon="inline-start" />Back to questions</Button>
-            <Card className="gap-0 shadow-hard-lg">
-              <div className="p-5 sm:p-6">
-                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-primary">Your question</p>
-                <h2 className="text-xl font-bold">{answerQuestion}</h2>
-              </div>
-              <Separator />
-              <div className="flex flex-col gap-5 p-5 sm:p-6">
-                {isAsking ? <p className="text-base text-muted-foreground" role="status">Looking through your center&apos;s handbook and updates…</p> : null}
-                {askError ? <Alert variant="destructive"><CircleHelp /><AlertTitle>We couldn&apos;t get that answer</AlertTitle><AlertDescription>{askError}<Button variant="link" className="ml-1 h-auto p-0" onClick={() => void submitQuestion(answerQuestion)}>Try again</Button></AlertDescription></Alert> : null}
-                {selectedFaq ? <AnswerPanel answer={selectedFaq.answer} sourceLabel={selectedFaq.sourceLabel} reviewedAt={selectedFaq.reviewedAt} isHandoff={false} /> : null}
-                {answer ? <AnswerPanel answer={answer.answer} sourceLabel={answer.sourceLabel} reviewedAt={answer.reviewedAt} isHandoff={answer.status === "handoff"} /> : null}
-                {answer?.suggestedQuestions?.length ? <div className="flex flex-col gap-2 border-t pt-4"><p className="text-sm font-medium">You might also find helpful</p><div className="flex flex-wrap gap-2">{answer.suggestedQuestions.map((suggestion) => <Button key={suggestion} variant="outline" size="sm" className="h-auto whitespace-normal text-left" onClick={() => void submitQuestion(suggestion)}>{suggestion}<ArrowRight data-icon="inline-end" /></Button>)}</div></div> : null}
-              </div>
-            </Card>
-          </section>
-        ) : (
-          <>
-            <Card className="mb-9 gap-0 shadow-hard-lg">
+        <div className="grid flex-1 items-start gap-7 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <div className="flex flex-col gap-4">
+            <Card className="gap-0 py-0 shadow-sm">
               <form onSubmit={(event) => { event.preventDefault(); void submitQuestion(); }}>
-                <label htmlFor="parent-question" className="block px-5 pt-5 text-lg font-bold">What can we help you find?</label>
-                <Textarea id="parent-question" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Type your question here…" className="mx-5 my-4 min-h-24 w-[calc(100%-2.5rem)]" />
-                {askError ? <p role="alert" className="px-4 pb-2 text-sm text-destructive">{askError}</p> : null}
-                <div className="flex flex-col justify-between gap-3 border-t-2 bg-accent px-5 py-4 sm:flex-row sm:items-center">
+                <label htmlFor="parent-question" className="block px-5 pt-4 text-lg font-semibold">What can we help you find?</label>
+                <Textarea id="parent-question" value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void submitQuestion(); } }} placeholder="Type your question here…" className="mx-5 my-3 min-h-16 w-[calc(100%-2.5rem)] lg:h-16" />
+                <p className="px-5 pb-3 text-xs text-muted-foreground">Shift + Enter to ask · Enter for a new line</p>
+                <div className="flex flex-col justify-between gap-3 border-t bg-accent/50 px-5 py-3 sm:flex-row sm:items-center">
                   <Button type="button" variant="outline" className="justify-start" onClick={() => { setIsChildSearchOpen(true); setIsChildVerified(false); }}><UserRound data-icon="inline-start" />Ask about my child<LockKeyhole data-icon="inline-end" /></Button>
                   <Button type="submit" disabled={!question.trim() || isAsking}>{isAsking ? "Finding an answer…" : "Ask brightflare"}<Send data-icon="inline-end" /></Button>
                 </div>
               </form>
             </Card>
+            {showingAnswer ? <section id="parent-answer" aria-live="polite" aria-label="Answer" className="scroll-mt-4 rounded-lg border bg-card p-5 shadow-sm">
+              <div className="mb-4 flex items-start justify-between gap-3"><h2 className="text-lg font-semibold">{answerQuestion}</h2><Button variant="ghost" size="icon-sm" aria-label="Close answer" onClick={closeAnswer}><ArrowLeft aria-hidden="true" /></Button></div>
+              {isAsking ? <p className="text-base text-muted-foreground" role="status">Looking through your center&apos;s handbook and updates…</p> : null}
+              {askError ? <Alert variant="destructive"><CircleHelp /><AlertTitle>We couldn&apos;t get that answer</AlertTitle><AlertDescription>{askError}<Button variant="link" className="ml-1 h-auto p-0" onClick={() => void submitQuestion(answerQuestion)}>Try again</Button></AlertDescription></Alert> : null}
+              {selectedFaq ? <AnswerPanel answer={selectedFaq.answer} sourceLabel={selectedFaq.sourceLabel} sourceId={selectedFaq.id} reviewedAt={selectedFaq.reviewedAt} isHandoff={false} isPrivate={false} /> : null}
+              {answer ? <AnswerPanel answer={answer.answer} sourceLabel={answer.sourceLabel} sourceId={answer.sourceId} reviewedAt={answer.reviewedAt} isHandoff={answer.status === "handoff"} isPrivate={isPrivateAnswer} /> : null}
+              {answer?.suggestedQuestions?.length ? <div className="mt-4 flex flex-col gap-2 border-t pt-4"><p className="text-sm font-medium">You might also find helpful</p><div className="flex flex-wrap gap-2">{answer.suggestedQuestions.map((suggestion) => <Button key={suggestion} variant="outline" size="sm" className="h-auto whitespace-normal text-left" onClick={() => void submitQuestion(suggestion)}>{suggestion}<ArrowRight data-icon="inline-end" /></Button>)}</div></div> : null}
+            </section> : null}
+          </div>
+          <section aria-labelledby="faq-heading">
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div><h2 id="faq-heading" className="text-2xl font-semibold">Popular questions</h2><p className="mt-0.5 text-base text-muted-foreground">Quick answers from your center</p></div>
+              <span className="hidden text-xs text-muted-foreground sm:block">{featuredFaqs.length} answers</span>
+            </div>
+            {isLoading ? <p className="py-5 text-sm text-muted-foreground" role="status">Loading center answers…</p> : null}
+            {loadError ? <Alert variant="destructive"><CircleHelp /><AlertTitle>We can&apos;t load the center&apos;s answers</AlertTitle><AlertDescription>{loadError}<Button variant="link" className="ml-1 h-auto p-0" onClick={() => window.location.reload()}>Try again</Button></AlertDescription></Alert> : null}
+            {!isLoading && !loadError && featuredFaqs.length === 0 ? <Card><div className="px-5 py-6 text-base text-muted-foreground">No quick answers are available yet. Ask a question and we&apos;ll help you find the right person.</div></Card> : null}
+            {!isLoading && !loadError && featuredFaqs.length > 0 ? <div className="grid gap-3 md:grid-cols-2">{featuredFaqs.map((faq, index) => <FaqCard faq={faq} key={faq.id} index={index} onSelect={openFaq} />)}</div> : null}
+          </section>
+        </div>
 
-            <section aria-labelledby="faq-heading">
-              <div className="mb-3 flex items-end justify-between gap-3">
-                <div><h2 id="faq-heading" className="text-2xl font-bold">Popular questions</h2><p className="mt-0.5 text-base text-muted-foreground">Quick answers from your center</p></div>
-                <span className="hidden text-xs text-muted-foreground sm:block">{featuredFaqs.length} answers</span>
-              </div>
-              {isLoading ? <p className="py-5 text-sm text-muted-foreground" role="status">Loading center answers…</p> : null}
-              {loadError ? <Alert variant="destructive"><CircleHelp /><AlertTitle>We can&apos;t load the center&apos;s answers</AlertTitle><AlertDescription>{loadError}<Button variant="link" className="ml-1 h-auto p-0" onClick={() => window.location.reload()}>Try again</Button></AlertDescription></Alert> : null}
-              {!isLoading && !loadError && featuredFaqs.length === 0 ? <Card><div className="px-5 py-6 text-base text-muted-foreground">No quick answers are available yet. Ask a question above and we&apos;ll help you find the right person.</div></Card> : null}
-              {!isLoading && !loadError && featuredFaqs.length > 0 ? <div className="grid gap-4 sm:grid-cols-2">{featuredFaqs.map((faq, index) => <FaqCard faq={faq} key={faq.id} index={index} onSelect={openFaq} />)}</div> : null}
-            </section>
-          </>
-        )}
-
-        <footer className="mt-8 flex flex-col justify-between gap-2 border-t pt-4 text-xs text-muted-foreground sm:flex-row sm:items-center">
+        <footer className="mt-auto flex flex-col justify-between gap-2 border-t pt-3 text-xs text-muted-foreground sm:flex-row sm:items-center">
           <div className="flex items-center gap-2"><Logo size={20} variant="mark" />brightflare family desk</div>
           <div className="flex items-center gap-1.5"><ShieldCheck aria-hidden="true" className="size-3.5" />Answers come from center-approved information.</div>
         </footer>
       </div>
 
       <Dialog open={isChildSearchOpen} onOpenChange={(isOpen) => { if (!isOpen) resetChildAccess(); else setIsChildSearchOpen(true); }}>
-        <DialogContent className="gap-5 rounded-xl border-2 border-foreground shadow-hard-lg sm:max-w-md">
+        <DialogContent className="gap-5 rounded-xl border shadow-sm sm:max-w-md">
           <DialogHeader>
             <DialogTitle>A private question about your child</DialogTitle>
             <DialogDescription>Verify your access first. Your child&apos;s information stays private on this shared screen.</DialogDescription>
@@ -289,28 +291,40 @@ export default function ParentDesk() {
 }
 
 function FaqCard({ faq, index, onSelect }: { faq: Faq; index: number; onSelect: (faq: Faq) => void }) {
-  return <Card className="gap-0 py-0 shadow-hard-sm">
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  function handleSelect() {
+    if (window.matchMedia?.("(max-width: 767px)").matches) {
+      setIsExpanded((current) => !current);
+      return;
+    }
+    onSelect(faq);
+  }
+
+  return <Card className="gap-0 py-0 shadow-sm">
     <CardContent className="h-full px-0">
-      <button type="button" className="flex h-full min-h-44 w-full flex-col items-start gap-3 rounded-xl px-6 py-5 text-left focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring" onClick={() => onSelect(faq)}>
-        <span className="flex w-full items-center justify-between gap-3">
-          <span className={`size-3 shrink-0 rounded-sm border border-foreground ${["bg-brand-amber", "bg-brand-teal", "bg-brand-pink", "bg-brand-blue"][index % 4]}`} aria-hidden="true" />
-          <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+      <button type="button" aria-expanded={isExpanded} className="flex h-full min-h-16 w-full flex-col items-start gap-2 rounded-lg px-4 py-3 text-left focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring md:min-h-28" onClick={handleSelect}>
+        <span className="flex w-full items-center gap-3">
+          <span className={`size-3 shrink-0 border border-foreground ${["bg-brand-amber", "bg-brand-teal", "bg-brand-pink", "bg-brand-blue"][index % 4]}`} aria-hidden="true" />
+          <span className="flex-1 text-base font-bold leading-snug">{faq.title}</span>
+          <ChevronRight aria-hidden="true" className={`size-4 shrink-0 text-muted-foreground transition-transform md:hidden ${isExpanded ? "rotate-90" : ""}`} />
         </span>
-        <span className="text-base font-bold leading-snug">{faq.title}</span>
-        <span className="text-sm leading-6 text-muted-foreground">{faq.shortAnswer}</span>
-        <span className="mt-auto flex items-center gap-1.5 pt-1 text-xs font-medium text-foreground"><BookOpen aria-hidden="true" className="size-4 shrink-0" />{faq.sourceLabel}</span>
+        <span className={`text-sm leading-6 text-muted-foreground ${isExpanded ? "block" : "hidden md:block"}`}>{faq.shortAnswer}</span>
+        <span className={`mt-auto items-center gap-1.5 pt-1 text-xs font-medium text-foreground ${isExpanded ? "flex" : "hidden md:flex"}`}><BookOpen aria-hidden="true" className="size-4 shrink-0" />{faq.sourceLabel}</span>
       </button>
+      {isExpanded ? <div className="px-4 pb-3 md:hidden"><Button type="button" size="sm" variant="outline" onClick={() => onSelect(faq)}>Read full answer<ArrowRight data-icon="inline-end" /></Button></div> : null}
     </CardContent>
   </Card>;
 }
 
-function AnswerPanel({ answer, sourceLabel, reviewedAt, isHandoff }: { answer: string; sourceLabel: string; reviewedAt: string; isHandoff: boolean }) {
+function AnswerPanel({ answer, sourceLabel, sourceId, reviewedAt, isHandoff, isPrivate }: { answer: string; sourceLabel: string; sourceId: string; reviewedAt: string; isHandoff: boolean; isPrivate: boolean }) {
   return <div className="flex flex-col gap-4">
     <p className="whitespace-pre-wrap text-base leading-7">{answer}</p>
     {isHandoff ? <Alert><MessageCircle /><AlertTitle>Let&apos;s get you a definite answer</AlertTitle><AlertDescription>This may depend on your family&apos;s situation. Please check with a member of the center team.</AlertDescription></Alert> : null}
     <div className="flex flex-col gap-1 border-t pt-3">
       <p className="flex items-center gap-1.5 text-sm font-medium"><BookOpen aria-hidden="true" className="size-4" />{isHandoff ? "Staff follow-up" : "Answer source"}</p>
       <p className="pl-[22px] text-sm text-muted-foreground">{sourceLabel || "Center staff"}</p>
+      {!isHandoff && !isPrivate && sourceId ? <a href={`/handbook/${encodeURIComponent(sourceId.split(",")[0])}`} target="_blank" rel="noopener noreferrer" className="pl-[22px] text-sm font-medium text-primary underline-offset-2 hover:underline">Read the handbook section</a> : null}
       {reviewedAt ? <p className="pl-[22px] text-xs text-muted-foreground">Reviewed {formatReviewDate(reviewedAt)}</p> : null}
     </div>
   </div>;

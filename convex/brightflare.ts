@@ -24,6 +24,30 @@ const knowledgeInput = {
   status: knowledgeStatus,
 };
 
+const recommendationStatus = v.union(v.literal("pending"), v.literal("approved"), v.literal("dismissed"));
+const recommendationValidator = v.object({
+  id: v.id("adminRecommendations"), kind: v.union(v.literal("faq"), v.literal("staff_answer"), v.literal("handbook_update")),
+  title: v.string(), shortAnswer: v.string(), answer: v.string(), sourceLabel: v.string(),
+  category: v.string(), isFeatured: v.boolean(), startsAt: v.union(v.number(), v.null()),
+  endsAt: v.union(v.number(), v.null()), rationale: v.string(), evidence: v.string(),
+  topicId: v.union(v.id("topics"), v.null()), targetKnowledgeId: v.union(v.id("knowledge"), v.null()),
+  sourceKnowledgeId: v.union(v.id("knowledge"), v.null()), requiresStaffInput: v.boolean(), status: recommendationStatus,
+  operation: v.union(v.literal("create"), v.literal("update")), target: v.string(),
+});
+
+function getRecommendationView(entry: Doc<"adminRecommendations">) {
+  return {
+    id: entry._id, kind: entry.kind, title: entry.title, shortAnswer: entry.shortAnswer,
+    answer: entry.answer, sourceLabel: entry.sourceLabel, category: entry.category,
+    isFeatured: entry.isFeatured, startsAt: entry.startsAt ?? null, endsAt: entry.endsAt ?? null,
+    rationale: entry.rationale, evidence: entry.evidence, topicId: entry.topicId ?? null,
+    targetKnowledgeId: entry.targetKnowledgeId ?? null, sourceKnowledgeId: entry.sourceKnowledgeId,
+    requiresStaffInput: entry.requiresStaffInput,
+    status: entry.status, operation: entry.operation,
+    target: entry.kind === "staff_answer" ? "Staff answer" : entry.kind === "handbook_update" ? "Handbook article" : "Front desk FAQ",
+  };
+}
+
 function assertServerSecret(secret: string) {
   const expected = process.env.BRIGHTFLARE_SERVER_SECRET;
   if (!expected || secret !== expected) {
@@ -43,7 +67,7 @@ function knowledgeSearchText(entry: {
 export const getFrontDesk = query({
   args: { centerSlug: v.string(), now: v.number() },
   returns: v.object({
-    center: v.object({ name: v.string(), handbookLabel: v.string(), websiteUrl: v.union(v.string(), v.null()) }),
+    center: v.object({ name: v.string(), handbookLabel: v.string(), websiteUrl: v.union(v.string(), v.null()), hours: v.string(), tagline: v.string() }),
     featured: v.array(v.object({
       id: v.id("knowledge"), title: v.string(), shortAnswer: v.string(), answer: v.string(),
       sourceLabel: v.string(), category: v.string(), reviewedAt: v.number(),
@@ -66,9 +90,36 @@ export const getFrontDesk = query({
       sourceLabel: entry.sourceLabel, category: entry.category, reviewedAt: entry.reviewedAt,
     });
     return {
-      center: { name: center.name, handbookLabel: center.handbookLabel, websiteUrl: center.websiteUrl ?? null },
+      center: { name: center.name, handbookLabel: center.handbookLabel, websiteUrl: center.websiteUrl ?? null, hours: center.hours ?? "Monday–Friday · 7:30 AM–5:30 PM", tagline: center.tagline ?? "A little more clarity in every day." },
       featured: active.filter((entry) => entry.isFeatured).slice(0, 8).map(toPublic),
       evergreen: active.filter((entry) => !entry.isFeatured).slice(0, 20).map(toPublic),
+    };
+  },
+});
+
+export const getPublicHandbook = query({
+  args: { centerSlug: v.string(), now: v.number() },
+  returns: v.object({
+    center: v.object({ name: v.string(), handbookLabel: v.string() }),
+    entries: v.array(v.object({
+      id: v.id("knowledge"), title: v.string(), shortAnswer: v.string(), answer: v.string(),
+      sourceLabel: v.string(), category: v.string(), reviewedAt: v.number(),
+    })),
+  }),
+  handler: async (ctx, args) => {
+    const center = await ctx.db.query("centers").withIndex("by_slug", (q) => q.eq("slug", args.centerSlug)).unique();
+    if (!center) throw new Error("Center not found");
+    const entries = await ctx.db.query("knowledge")
+      .withIndex("by_center_and_status", (q) => q.eq("centerId", center._id).eq("status", "published"))
+      .take(100);
+    return {
+      center: { name: center.name, handbookLabel: center.handbookLabel },
+      entries: entries.filter((entry) => (entry.startsAt === undefined || entry.startsAt <= args.now)
+        && (entry.endsAt === undefined || entry.endsAt >= args.now))
+        .map((entry) => ({
+          id: entry._id, title: entry.title, shortAnswer: entry.shortAnswer, answer: entry.answer,
+          sourceLabel: entry.sourceLabel, category: entry.category, reviewedAt: entry.reviewedAt,
+        })),
     };
   },
 });
@@ -188,6 +239,227 @@ export const getSeasonalHistory = query({
   },
 });
 
+export const getAdminRecommendationContext = query({
+  args: { secret: v.string(), centerSlug: v.string(), month: v.number(), now: v.number() },
+  returns: v.object({
+    centerName: v.string(),
+    voiceSettings: v.object({ tone: v.string(), audience: v.string(), preferredTerms: v.array(v.string()), forbiddenTerms: v.array(v.string()), glossary: v.array(v.object({ term: v.string(), meaning: v.string() })) }),
+    shouldGenerate: v.boolean(),
+    knowledge: v.array(v.object({ id: v.id("knowledge"), title: v.string(), shortAnswer: v.string(), answer: v.string(), sourceLabel: v.string(), category: v.string(), isFeatured: v.boolean(), reviewedAt: v.number() })),
+    topics: v.array(v.object({ id: v.id("topics"), title: v.string(), questionCount: v.number(), sessionCount: v.number(), status: topicStatus, examples: v.array(v.string()) })),
+    seasonalHistory: v.array(v.object({ title: v.string(), year: v.number(), questionCount: v.number() })),
+    suppressedSourceIds: v.array(v.id("knowledge")),
+    suppressedTopicIds: v.array(v.id("topics")),
+  }),
+  handler: async (ctx, args) => {
+    assertServerSecret(args.secret);
+    const center = await ctx.db.query("centers").withIndex("by_slug", (q) => q.eq("slug", args.centerSlug)).unique();
+    if (!center) throw new Error("Center not found");
+    const knowledgeRows = await ctx.db.query("knowledge")
+      .withIndex("by_center_and_status", (q) => q.eq("centerId", center._id).eq("status", "published")).take(100);
+    const knowledge = knowledgeRows.filter((entry) =>
+      (entry.startsAt === undefined || entry.startsAt <= args.now)
+      && (entry.endsAt === undefined || entry.endsAt >= args.now),
+    );
+    const allTopics = await Promise.all(["needs_answer", "needs_review", "answered", "handled_by_staff"].map((status) =>
+      ctx.db.query("topics")
+        .withIndex("by_center_and_status_and_last_asked", (q) => q.eq("centerId", center._id).eq("status", status as "needs_answer" | "needs_review" | "answered" | "handled_by_staff"))
+        .order("desc").take(25),
+    ));
+    const history = await ctx.db.query("seasonalHistory")
+      .withIndex("by_center_month_and_year", (q) => q.eq("centerId", center._id).eq("month", args.month))
+      .order("desc").take(30);
+    const pending = await ctx.db.query("adminRecommendations")
+      .withIndex("by_center_and_status", (q) => q.eq("centerId", center._id).eq("status", "pending")).take(20);
+    const recentDecisions = (await Promise.all(["approved", "dismissed"].map((status) =>
+      ctx.db.query("adminRecommendations")
+        .withIndex("by_center_and_status", (q) => q.eq("centerId", center._id).eq("status", status as "approved" | "dismissed"))
+        .order("desc").take(50),
+    ))).flat().filter((entry) => args.now - entry.updatedAt < 30 * 24 * 60 * 60 * 1000);
+    const suppressed = [...pending, ...recentDecisions];
+    return {
+      centerName: center.name,
+      voiceSettings: {
+        tone: center.voiceTone ?? "Warm, clear, and practical",
+        audience: center.voiceAudience ?? "Parents and guardians of enrolled children",
+        preferredTerms: center.preferredTerms ?? [],
+        forbiddenTerms: center.forbiddenTerms ?? [],
+        glossary: center.glossary ?? [],
+      },
+      shouldGenerate: center.recommendationsAnalyzedAt === undefined || args.now - center.recommendationsAnalyzedAt >= 10 * 60 * 1000,
+      knowledge: knowledge.map((entry) => ({ id: entry._id, title: entry.title, shortAnswer: entry.shortAnswer, answer: entry.answer, sourceLabel: entry.sourceLabel, category: entry.category, isFeatured: entry.isFeatured, reviewedAt: entry.reviewedAt })),
+      topics: allTopics.flat().map((topic) => ({ id: topic._id, title: topic.canonicalTitle, questionCount: topic.questionCount, sessionCount: topic.sessionCount, status: topic.status, examples: topic.recentExamples })),
+      seasonalHistory: history.map((entry) => ({ title: entry.canonicalTitle, year: entry.year, questionCount: entry.questionCount })),
+      suppressedSourceIds: suppressed.flatMap((entry) => entry.sourceKnowledgeId ? [entry.sourceKnowledgeId] : []),
+      suppressedTopicIds: suppressed.flatMap((entry) => entry.topicId ? [entry.topicId] : []),
+    };
+  },
+});
+
+export const claimAdminRecommendationRun = mutation({
+  args: { secret: v.string(), centerSlug: v.string(), now: v.number() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    assertServerSecret(args.secret);
+    const center = await ctx.db.query("centers").withIndex("by_slug", (q) => q.eq("slug", args.centerSlug)).unique();
+    if (!center) throw new Error("Center not found");
+    if (center.recommendationsAnalyzedAt !== undefined && args.now - center.recommendationsAnalyzedAt < 10 * 60 * 1000) return false;
+    await ctx.db.patch(center._id, { recommendationsAnalyzedAt: args.now });
+    return true;
+  },
+});
+
+export const saveCenterVoiceSettings = mutation({
+  args: {
+    secret: v.string(), centerSlug: v.string(), tone: v.string(), audience: v.string(),
+    preferredTerms: v.array(v.string()), forbiddenTerms: v.array(v.string()),
+    glossary: v.array(v.object({ term: v.string(), meaning: v.string() })),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    assertServerSecret(args.secret);
+    const center = await ctx.db.query("centers").withIndex("by_slug", (q) => q.eq("slug", args.centerSlug)).unique();
+    if (!center) throw new Error("Center not found");
+    await ctx.db.patch(center._id, {
+      voiceTone: args.tone, voiceAudience: args.audience,
+      preferredTerms: args.preferredTerms, forbiddenTerms: args.forbiddenTerms,
+      glossary: args.glossary,
+      recommendationsAnalyzedAt: undefined,
+    });
+    return null;
+  },
+});
+
+export const listAdminRecommendations = query({
+  args: { secret: v.string(), centerSlug: v.string() },
+  returns: v.array(recommendationValidator),
+  handler: async (ctx, args) => {
+    assertServerSecret(args.secret);
+    const center = await ctx.db.query("centers").withIndex("by_slug", (q) => q.eq("slug", args.centerSlug)).unique();
+    if (!center) throw new Error("Center not found");
+    const pending = await ctx.db.query("adminRecommendations")
+      .withIndex("by_center_and_status", (q) => q.eq("centerId", center._id).eq("status", "pending"))
+      .order("desc").take(20);
+    return pending.map(getRecommendationView);
+  },
+});
+
+export const saveAdminRecommendations = mutation({
+  args: {
+    secret: v.string(), centerSlug: v.string(),
+    recommendations: v.array(v.object({
+      sourceKnowledgeId: v.union(v.id("knowledge"), v.null()), targetKnowledgeId: v.union(v.id("knowledge"), v.null()),
+      topicId: v.union(v.id("topics"), v.null()), kind: v.union(v.literal("faq"), v.literal("staff_answer"), v.literal("handbook_update")),
+      targetReviewedAt: v.union(v.number(), v.null()), operation: v.union(v.literal("create"), v.literal("update")),
+      title: v.string(), shortAnswer: v.string(), answer: v.string(), sourceLabel: v.string(), category: v.string(), isFeatured: v.boolean(),
+      requiresStaffInput: v.boolean(), rationale: v.string(), evidence: v.string(),
+    })),
+  },
+  returns: v.array(recommendationValidator),
+  handler: async (ctx, args) => {
+    assertServerSecret(args.secret);
+    const center = await ctx.db.query("centers").withIndex("by_slug", (q) => q.eq("slug", args.centerSlug)).unique();
+    if (!center) throw new Error("Center not found");
+    const results: ReturnType<typeof getRecommendationView>[] = [];
+    for (const candidate of args.recommendations.slice(0, 4)) {
+      const source = candidate.sourceKnowledgeId ? await ctx.db.get(candidate.sourceKnowledgeId) : null;
+      if (candidate.sourceKnowledgeId && (!source || source.centerId !== center._id || source.status !== "published")) continue;
+      const target = candidate.targetKnowledgeId ? await ctx.db.get(candidate.targetKnowledgeId) : null;
+      if (candidate.targetKnowledgeId && (!target || target.centerId !== center._id || target.status !== "published")) continue;
+      const pending = await ctx.db.query("adminRecommendations")
+        .withIndex("by_center_and_status", (q) => q.eq("centerId", center._id).eq("status", "pending")).take(20);
+      const existing = pending.find((entry) => entry.sourceKnowledgeId === candidate.sourceKnowledgeId && entry.topicId === candidate.topicId && entry.kind === candidate.kind);
+      if (existing) {
+        results.push(getRecommendationView(existing));
+        continue;
+      }
+      const recentDecisions = (await Promise.all(["approved", "dismissed"].map((status) =>
+        ctx.db.query("adminRecommendations")
+          .withIndex("by_center_and_status", (q) => q.eq("centerId", center._id).eq("status", status as "approved" | "dismissed"))
+          .order("desc").take(50),
+      ))).flat();
+      if (recentDecisions.some((entry) => Date.now() - entry.updatedAt < 30 * 24 * 60 * 60 * 1000
+        && ((candidate.sourceKnowledgeId && entry.sourceKnowledgeId === candidate.sourceKnowledgeId)
+          || (candidate.topicId && entry.topicId === candidate.topicId)))) continue;
+      const topic = candidate.topicId ? await ctx.db.get(candidate.topicId) : null;
+      if (topic && topic.centerId !== center._id) continue;
+      const now = Date.now();
+      const id = await ctx.db.insert("adminRecommendations", {
+        centerId: center._id, sourceKnowledgeId: source?._id ?? null, targetKnowledgeId: target?._id,
+        targetReviewedAt: candidate.targetReviewedAt ?? target?.reviewedAt, operation: candidate.operation, topicId: topic?._id,
+        kind: candidate.kind, title: candidate.title, shortAnswer: candidate.shortAnswer, answer: candidate.answer,
+        sourceLabel: candidate.sourceLabel, category: candidate.category, isFeatured: candidate.isFeatured,
+        startsAt: target?.startsAt, endsAt: target?.endsAt,
+        rationale: candidate.rationale.slice(0, 400), evidence: candidate.evidence.slice(0, 400),
+        requiresStaffInput: candidate.requiresStaffInput, status: "pending", createdAt: now, updatedAt: now,
+      });
+      const saved = await ctx.db.get(id);
+      if (saved) results.push(getRecommendationView(saved));
+    }
+    return results;
+  },
+});
+
+export const decideAdminRecommendation = mutation({
+  args: {
+    secret: v.string(), centerSlug: v.string(), id: v.id("adminRecommendations"),
+    action: v.union(v.literal("approve"), v.literal("dismiss"), v.literal("edit")),
+    editedEntry: v.optional(v.object({
+      title: v.string(), shortAnswer: v.string(), answer: v.string(), sourceLabel: v.string(),
+      category: v.string(), isFeatured: v.boolean(), startsAt: v.union(v.number(), v.null()), endsAt: v.union(v.number(), v.null()),
+    })),
+  },
+  returns: v.union(v.null(), v.object({ id: v.id("knowledge") })),
+  handler: async (ctx, args) => {
+    assertServerSecret(args.secret);
+    const center = await ctx.db.query("centers").withIndex("by_slug", (q) => q.eq("slug", args.centerSlug)).unique();
+    const recommendation = await ctx.db.get(args.id);
+    if (!center || !recommendation || recommendation.centerId !== center._id) throw new Error("Recommendation not found");
+    if (recommendation.status !== "pending") throw new Error("Recommendation is no longer pending");
+    const now = Date.now();
+    if (args.action === "dismiss") {
+      await ctx.db.patch(recommendation._id, { status: "dismissed", updatedAt: now });
+      return null;
+    }
+    if (args.action === "edit") {
+      if (!args.editedEntry) throw new Error("Edited FAQ content is required");
+      if (recommendation.requiresStaffInput && (
+        args.editedEntry.answer.trim() === recommendation.answer.trim()
+        || args.editedEntry.sourceLabel.trim() === recommendation.sourceLabel.trim()
+      )) throw new Error("Add the center's confirmed answer and source before publishing");
+      await ctx.db.patch(recommendation._id, {
+        ...args.editedEntry, startsAt: args.editedEntry.startsAt ?? undefined,
+        endsAt: args.editedEntry.endsAt ?? undefined, requiresStaffInput: false, updatedAt: now,
+      });
+      return null;
+    }
+    if (recommendation.requiresStaffInput && !args.editedEntry) throw new Error("Staff must confirm the answer before publishing");
+    const entry = args.editedEntry ?? recommendation;
+    let knowledgeId: Id<"knowledge">;
+    const document = {
+      title: entry.title, shortAnswer: entry.shortAnswer, answer: entry.answer,
+      sourceLabel: entry.sourceLabel, category: entry.category, isFeatured: entry.isFeatured,
+      startsAt: entry.startsAt ?? undefined, endsAt: entry.endsAt ?? undefined,
+      reviewedAt: now, status: "published" as const, searchText: knowledgeSearchText(entry),
+    };
+    if (recommendation.operation === "update") {
+      const target = recommendation.targetKnowledgeId ? await ctx.db.get(recommendation.targetKnowledgeId) : null;
+      if (!target || target.centerId !== center._id || target.status !== "published") throw new Error("The handbook section has changed");
+      if (recommendation.targetReviewedAt !== target.reviewedAt) throw new Error("The handbook section has changed since this suggestion was drafted");
+      await ctx.db.patch(target._id, document);
+      knowledgeId = target._id;
+    } else {
+      knowledgeId = await ctx.db.insert("knowledge", { centerId: center._id, ...document });
+    }
+    await ctx.db.patch(recommendation._id, { status: "approved", publishedKnowledgeId: knowledgeId, updatedAt: now });
+    if (recommendation.topicId) {
+      const topic = await ctx.db.get(recommendation.topicId);
+      if (topic && topic.centerId === center._id) await ctx.db.patch(topic._id, { status: "answered", knowledgeId });
+    }
+    return { id: knowledgeId };
+  },
+});
+
 export const getChildContext = query({
   args: { secret: v.string(), centerSlug: v.string(), childName: v.string() },
   returns: v.union(v.null(), v.object({
@@ -234,6 +506,72 @@ export const getKnowledgeForAsk = query({
     return matches.filter((entry) => (entry.startsAt === undefined || entry.startsAt <= args.now)
       && (entry.endsAt === undefined || entry.endsAt >= args.now))
       .map((entry) => ({ id: entry._id, title: entry.title, answer: entry.answer, sourceLabel: entry.sourceLabel, reviewedAt: entry.reviewedAt }));
+  },
+});
+
+export const getCenterVoiceSettings = query({
+  args: { secret: v.string(), centerSlug: v.string() },
+  returns: v.object({
+    tone: v.string(), audience: v.string(), preferredTerms: v.array(v.string()),
+    forbiddenTerms: v.array(v.string()), glossary: v.array(v.object({ term: v.string(), meaning: v.string() })),
+  }),
+  handler: async (ctx, args) => {
+    assertServerSecret(args.secret);
+    const center = await ctx.db.query("centers").withIndex("by_slug", (q) => q.eq("slug", args.centerSlug)).unique();
+    if (!center) throw new Error("Center not found");
+    return {
+      tone: center.voiceTone ?? "Warm, clear, and practical",
+      audience: center.voiceAudience ?? "Parents and guardians of enrolled children",
+      preferredTerms: center.preferredTerms ?? [], forbiddenTerms: center.forbiddenTerms ?? [],
+      glossary: center.glossary ?? [],
+    };
+  },
+});
+
+export const getCenterSettings = query({
+  args: { secret: v.string(), centerSlug: v.string() },
+  returns: v.object({
+    name: v.string(), hours: v.string(), tagline: v.string(), timezone: v.string(),
+    handbookLabel: v.string(), websiteUrl: v.string(), tone: v.string(), audience: v.string(),
+    preferredTerms: v.array(v.string()), forbiddenTerms: v.array(v.string()),
+    glossary: v.array(v.object({ term: v.string(), meaning: v.string() })),
+  }),
+  handler: async (ctx, args) => {
+    assertServerSecret(args.secret);
+    const center = await ctx.db.query("centers").withIndex("by_slug", (q) => q.eq("slug", args.centerSlug)).unique();
+    if (!center) throw new Error("Center not found");
+    return {
+      name: center.name, hours: center.hours ?? "Monday–Friday · 7:30 AM–5:30 PM",
+      tagline: center.tagline ?? "A little more clarity in every day.", timezone: center.timezone,
+      handbookLabel: center.handbookLabel, websiteUrl: center.websiteUrl ?? "",
+      tone: center.voiceTone ?? "Warm, clear, and practical",
+      audience: center.voiceAudience ?? "Parents and guardians of enrolled children",
+      preferredTerms: center.preferredTerms ?? [], forbiddenTerms: center.forbiddenTerms ?? [],
+      glossary: center.glossary ?? [],
+    };
+  },
+});
+
+export const saveCenterSettings = mutation({
+  args: {
+    secret: v.string(), centerSlug: v.string(), name: v.string(), hours: v.string(),
+    tagline: v.string(), timezone: v.string(), handbookLabel: v.string(), websiteUrl: v.string(),
+    tone: v.string(), audience: v.string(), preferredTerms: v.array(v.string()),
+    forbiddenTerms: v.array(v.string()), glossary: v.array(v.object({ term: v.string(), meaning: v.string() })),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    assertServerSecret(args.secret);
+    const center = await ctx.db.query("centers").withIndex("by_slug", (q) => q.eq("slug", args.centerSlug)).unique();
+    if (!center) throw new Error("Center not found");
+    await ctx.db.patch(center._id, {
+      name: args.name, hours: args.hours, tagline: args.tagline, timezone: args.timezone,
+      handbookLabel: args.handbookLabel, websiteUrl: args.websiteUrl || undefined,
+      voiceTone: args.tone, voiceAudience: args.audience,
+      preferredTerms: args.preferredTerms, forbiddenTerms: args.forbiddenTerms,
+      glossary: args.glossary, recommendationsAnalyzedAt: undefined,
+    });
+    return null;
   },
 });
 

@@ -8,6 +8,7 @@ const topicStatus = v.union(
   v.literal("answered"),
   v.literal("handled_by_staff"),
 );
+const recommendationStatus = v.union(v.literal("pending"), v.literal("approved"), v.literal("dismissed"));
 
 export default defineSchema({
   centers: defineTable({
@@ -16,6 +17,14 @@ export default defineSchema({
     timezone: v.string(),
     handbookLabel: v.string(),
     websiteUrl: v.optional(v.string()),
+    hours: v.optional(v.string()),
+    tagline: v.optional(v.string()),
+    voiceTone: v.optional(v.string()),
+    voiceAudience: v.optional(v.string()),
+    preferredTerms: v.optional(v.array(v.string())),
+    forbiddenTerms: v.optional(v.array(v.string())),
+    glossary: v.optional(v.array(v.object({ term: v.string(), meaning: v.string() }))),
+    recommendationsAnalyzedAt: v.optional(v.number()),
   }).index("by_slug", ["slug"]),
   knowledge: defineTable({
     centerId: v.id("centers"),
@@ -84,4 +93,30 @@ export default defineSchema({
     outcome: v.union(v.literal("answered"), v.literal("needs_staff")),
     sourceStatus: v.union(v.literal("sourced"), v.literal("unsourced")),
   }).index("by_center_and_asked_at", ["centerId", "askedAt"]),
+  adminRecommendations: defineTable({
+    centerId: v.id("centers"),
+    sourceKnowledgeId: v.union(v.id("knowledge"), v.null()),
+    targetKnowledgeId: v.optional(v.id("knowledge")),
+    targetReviewedAt: v.optional(v.number()),
+    operation: v.union(v.literal("create"), v.literal("update")),
+    topicId: v.optional(v.id("topics")),
+    kind: v.union(v.literal("faq"), v.literal("staff_answer"), v.literal("handbook_update")),
+    title: v.string(),
+    shortAnswer: v.string(),
+    answer: v.string(),
+    sourceLabel: v.string(),
+    category: v.string(),
+    isFeatured: v.boolean(),
+    startsAt: v.optional(v.number()),
+    endsAt: v.optional(v.number()),
+    rationale: v.string(),
+    evidence: v.string(),
+    requiresStaffInput: v.boolean(),
+    status: recommendationStatus,
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    publishedKnowledgeId: v.optional(v.id("knowledge")),
+  })
+    .index("by_center_and_status", ["centerId", "status"])
+    .index("by_center_status_and_source", ["centerId", "status", "sourceKnowledgeId"]),
 });

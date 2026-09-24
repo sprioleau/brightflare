@@ -5,6 +5,7 @@ import { Logo } from "@/components/brand/Logo"
 import {
   ArrowUpRight,
   BookOpen,
+  CheckCircle2,
   CalendarDays,
   Check,
   ChevronRight,
@@ -16,6 +17,7 @@ import {
   MessageCircle,
   Plus,
   Search,
+  Settings2,
   WandSparkles,
 } from "lucide-react"
 
@@ -36,6 +38,8 @@ type Topic = {
   status: TopicStatus
   lastAskedAt: string
   examples: string[]
+  category?: string
+  isCategorySuggested?: boolean
 }
 
 type KnowledgeEntry = {
@@ -55,6 +59,27 @@ type Suggestion = {
   title: string
   reason: string
   questionCount: number
+}
+
+type Recommendation = {
+  id: string
+  kind: "faq" | "staff_answer" | "handbook_update"
+  title: string
+  shortAnswer: string
+  answer: string
+  sourceLabel: string
+  category: string
+  isFeatured: boolean
+  startsAt?: string
+  endsAt?: string
+  rationale: string
+  evidence: string | string[]
+  requiresStaffInput?: boolean
+  target?: string
+  sourceKnowledgeId?: string | null
+  operation?: "create" | "update"
+  topicId?: string
+  status: "pending"
 }
 
 type QuestionEvent = {
@@ -137,6 +162,14 @@ function toDateInput(value?: string) {
   return date.toISOString().slice(0, 10)
 }
 
+function humanizeEvidence(value: string) {
+  return value.replace(/\bjx[a-z0-9]{20,}\b/gi, "the related question topic")
+    .replace(/\bjh[a-z0-9]{20,}\b/gi, "the linked handbook section")
+    .replace(/(?:published center knowledge|published source) the linked handbook section/gi, "the linked handbook section")
+    .replace(/question group the related question topic/gi, "the related question topic")
+    .replace(/question groups the related question topic/gi, "the related question topic")
+}
+
 export default function AdminConsole() {
   const [data, setData] = useState<AdminData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -159,6 +192,54 @@ export default function AdminConsole() {
   const [authError, setAuthError] = useState("")
   const [isLoadingOlderQuestions, setIsLoadingOlderQuestions] = useState(false)
   const [olderQuestionsError, setOlderQuestionsError] = useState("")
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([])
+  const [recommendationSearch, setRecommendationSearch] = useState("")
+  const [recommendationFilter, setRecommendationFilter] = useState<"all" | "ready" | "staff">("all")
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false)
+  const [recommendationError, setRecommendationError] = useState("")
+  const [recommendationActionId, setRecommendationActionId] = useState<string | null>(null)
+  const [editingRecommendationId, setEditingRecommendationId] = useState<string | null>(null)
+
+  const loadRecommendations = useCallback(async function loadRecommendations() {
+    setIsLoadingRecommendations(true)
+    setRecommendationError("")
+    try {
+      const response = await fetch("/api/admin/recommendations", { cache: "no-store" })
+      if (!response.ok) throw new Error("Recommendations could not be loaded.")
+      const result = (await response.json()) as { recommendations: Recommendation[] }
+      setRecommendations(result.recommendations ?? [])
+    } catch (error) {
+      setRecommendationError(error instanceof Error ? error.message : "Recommendations could not be loaded.")
+    } finally {
+      setIsLoadingRecommendations(false)
+    }
+  }, [])
+
+  async function updateRecommendation(id: string, action: "approve" | "edit" | "dismiss", fields?: KnowledgeDraft) {
+    setRecommendationActionId(id)
+    setRecommendationError("")
+    try {
+      const response = await fetch("/api/admin/recommendations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action, ...(fields ? { entry: { ...fields, startsAt: fields.startsAt || undefined, endsAt: fields.endsAt || undefined } } : {}) }),
+      })
+      if (!response.ok) throw new Error(action === "approve" ? "The recommended update could not be published." : action === "edit" ? "The recommendation changes could not be saved." : "The recommendation could not be dismissed.")
+      if (action === "edit" && fields) {
+        setRecommendations((current) => current.map((recommendation) => recommendation.id === id ? { ...recommendation, ...fields, startsAt: fields.startsAt || undefined, endsAt: fields.endsAt || undefined, requiresStaffInput: false } : recommendation))
+      } else {
+        setRecommendations((current) => current.filter((recommendation) => recommendation.id !== id))
+      }
+      setToast(action === "approve" ? "Recommended update published and live for parents." : action === "edit" ? "Recommendation changes saved. Approve when they’re ready to publish." : "Recommendation dismissed.")
+      setEditingRecommendationId(null)
+      setIsEditing(false)
+      if (action === "approve") await loadData(false)
+    } catch (error) {
+      setRecommendationError(error instanceof Error ? error.message : "The recommendation could not be updated.")
+    } finally {
+      setRecommendationActionId(null)
+    }
+  }
 
   const loadData = useCallback(async function loadData(shouldShowLoading = true) {
     if (shouldShowLoading) setIsLoading(true)
@@ -201,8 +282,11 @@ export default function AdminConsole() {
   }, [])
 
   useEffect(() => {
-    if (isAuthenticated) void loadData()
-  }, [isAuthenticated, loadData])
+    if (isAuthenticated) {
+      void loadData()
+      void loadRecommendations()
+    }
+  }, [isAuthenticated, loadData, loadRecommendations])
 
   useEffect(() => {
     if (!isAuthenticated) return
@@ -218,6 +302,22 @@ export default function AdminConsole() {
   }, [data?.topics, search])
 
   const selectedTopic = visibleTopics.find((topic) => topic.id === selectedTopicId) ?? visibleTopics[0]
+  const topicGroups = useMemo(() => {
+    const groups = new Map<string, Topic[]>()
+    for (const topic of visibleTopics) {
+      const category = topic.category?.trim() || "Other questions"
+      groups.set(category, [...(groups.get(category) ?? []), topic])
+    }
+    return [...groups.entries()]
+  }, [visibleTopics])
+  const visibleRecommendations = useMemo(() => {
+    const query = recommendationSearch.trim().toLowerCase()
+    return recommendations.filter((recommendation) => {
+      const matchesQuery = !query || [recommendation.title, recommendation.shortAnswer, recommendation.category, recommendation.sourceLabel].some((value) => value.toLowerCase().includes(query))
+      const matchesFilter = recommendationFilter === "all" || (recommendationFilter === "staff" ? recommendation.requiresStaffInput : !recommendation.requiresStaffInput)
+      return matchesQuery && matchesFilter
+    })
+  }, [recommendationFilter, recommendationSearch, recommendations])
   const unansweredCount = (data?.topics ?? []).filter((topic) => topic.status === "needs_answer").length
   const questionTotal = (data?.topics ?? []).reduce((sum, topic) => sum + topic.questionCount, 0)
   const seasonalIdeas = useMemo(() => {
@@ -291,6 +391,10 @@ export default function AdminConsole() {
 
   async function saveKnowledge(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (editingRecommendationId) {
+      await updateRecommendation(editingRecommendationId, "edit", draft)
+      return
+    }
     setIsSaving(true)
     setSaveError("")
     try {
@@ -352,30 +456,33 @@ export default function AdminConsole() {
   }
 
   if (!isAuthenticated) {
-    return <div className="flex min-h-screen items-center justify-center bg-background px-4"><Card className="w-full max-w-md shadow-hard-lg"><CardHeader><div className="mb-4"><Logo size={36} /></div><CardTitle className="text-2xl font-bold">Staff access</CardTitle><CardDescription>Enter your center PIN to manage brightflare answers and family questions.</CardDescription></CardHeader><CardContent><form onSubmit={signIn} className="flex flex-col gap-4">{authError && <p className="text-sm text-destructive" role="alert">{authError}</p>}<label className="flex flex-col gap-2 text-sm font-medium" htmlFor="admin-pin">Center PIN<Input id="admin-pin" autoComplete="current-password" inputMode="numeric" type="password" value={pin} onChange={(event) => setPin(event.target.value)} required /></label><Button className="w-full" disabled={!pin.trim()}>Continue</Button></form></CardContent></Card></div>
+    return <div className="flex min-h-screen items-center justify-center bg-background px-4"><Card className="w-full max-w-md shadow-sm"><CardHeader><div className="mb-4"><Logo size={36} /></div><CardTitle className="text-2xl font-bold">Staff access</CardTitle><CardDescription>Enter your center PIN to manage brightflare answers and family questions.</CardDescription></CardHeader><CardContent><form onSubmit={signIn} className="flex flex-col gap-4">{authError && <p className="text-sm text-destructive" role="alert">{authError}</p>}<label className="flex flex-col gap-2 text-sm font-medium" htmlFor="admin-pin">Center PIN<Input id="admin-pin" autoComplete="current-password" inputMode="numeric" type="password" value={pin} onChange={(event) => setPin(event.target.value)} required /></label><Button className="w-full" disabled={!pin.trim()}>Continue</Button></form></CardContent></Card></div>
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-20 border-b-2 border-foreground bg-card">
-        <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between px-4 sm:px-8">
-          <div className="flex items-center gap-3">
-            <Logo size={32} variant="mark" />
-            <div className="leading-tight">
-              <div className="font-bold tracking-tight">brightflare <span className="font-medium text-muted-foreground">Admin</span></div>
-              <div className="mt-0.5 text-xs text-muted-foreground">{data?.center.name ?? "Center knowledge"}</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 rounded-lg border-2 border-foreground bg-brand-teal px-3 py-1.5 text-xs font-semibold text-foreground">
-            <span className="size-2 rounded-full bg-foreground" /> Center staff workspace
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-muted/30 text-foreground">
+      <div className="mx-auto flex min-h-screen max-w-[1440px] bg-background shadow-sm">
+        <aside className="sticky top-0 flex h-screen w-[220px] shrink-0 flex-col border-r bg-card px-3 py-5 max-md:hidden">
+          <a href="/admin" className="mb-8 flex items-center gap-3 rounded-lg px-2 py-1.5"><Logo size={32} variant="mark" /><span className="font-bold tracking-tight">brightflare <span className="font-medium text-muted-foreground">Admin</span></span></a>
+          <div className="mb-3 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Workspace</div>
+          <nav aria-label="Admin navigation" className="space-y-1">
+            <button type="button" onClick={() => { setActiveView("stream"); setIsEditing(false) }} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium ${activeView === "stream" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted"}`}><MessageCircle className="size-4" />Questions</button>
+            <button type="button" onClick={() => { setActiveView("inbox"); setIsEditing(false) }} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium ${activeView === "inbox" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted"}`}><CircleHelp className="size-4" />Question topics<Badge variant="secondary" className="ml-auto">{unansweredCount}</Badge></button>
+            <button type="button" onClick={() => { setActiveView("handbook"); setIsEditing(false) }} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium ${activeView === "handbook" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted"}`}><BookOpen className="size-4" />Handbook</button>
+          </nav>
+          <div className="mt-auto border-t pt-4"><a href="/admin/settings" className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"><Settings2 className="size-4" />Center settings</a><p className="mt-3 truncate px-3 text-xs text-muted-foreground">{data?.center.name ?? "Center knowledge"}</p></div>
+        </aside>
+        <div className="min-w-0 flex-1">
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur sm:px-8"><div className="text-sm font-medium text-muted-foreground">Center workspace</div><div className="flex items-center gap-3"><a href="/admin/settings" aria-label="Center settings" className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"><Settings2 className="size-4" /></a><span className="text-sm font-semibold">Center staff</span></div></header>
+        <nav aria-label="Mobile admin navigation" className="flex gap-2 overflow-x-auto border-b bg-card px-4 py-2 md:hidden">
+          <Button type="button" size="sm" variant={activeView === "stream" ? "default" : "outline"} onClick={() => { setActiveView("stream"); setIsEditing(false) }}>Questions</Button>
+          <Button type="button" size="sm" variant={activeView === "inbox" ? "default" : "outline"} onClick={() => { setActiveView("inbox"); setIsEditing(false) }}>Topics ({unansweredCount})</Button>
+          <Button type="button" size="sm" variant={activeView === "handbook" ? "default" : "outline"} onClick={() => { setActiveView("handbook"); setIsEditing(false) }}>Handbook</Button>
+        </nav>
 
-      <main className="mx-auto max-w-[1440px] px-4 py-7 sm:px-8 lg:py-10">
+      <main className="mx-auto max-w-[1200px] px-4 py-7 sm:px-8 lg:py-9">
         <div className="mb-6 flex flex-col justify-between gap-4 border-b pb-6 sm:flex-row sm:items-end">
           <div>
-            <p className="mb-2 inline-flex rounded-md border-2 border-foreground bg-brand-amber px-2.5 py-1 text-xs font-bold">CENTER OVERVIEW</p>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Good morning, team</h1>
             <p className="mt-2 max-w-2xl text-muted-foreground">See what families are asking, keep your handbook up to date, and get the right answer to the front desk.</p>
           </div>
@@ -391,23 +498,21 @@ export default function AdminConsole() {
           <MetricCard icon={<BookOpen />} label="In the handbook" value={isLoading ? "—" : String(data?.knowledge.length ?? 0)} footnote="Published center answers" />
         </section>
 
-        <div className="mb-4 flex items-center gap-1 border-b">
-          <button onClick={() => { setActiveView("stream"); setIsEditing(false) }} className={`relative px-4 py-3 text-sm font-medium transition-colors ${activeView === "stream" ? "text-foreground after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary" : "text-muted-foreground hover:text-foreground"}`}>
-            Recent questions
-          </button>
-          <button onClick={() => { setActiveView("inbox"); setIsEditing(false) }} className={`relative px-4 py-3 text-sm font-medium transition-colors ${activeView === "inbox" ? "text-foreground after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary" : "text-muted-foreground hover:text-foreground"}`}>
-            Topics <Badge variant="secondary" className="ml-1.5">{unansweredCount}</Badge>
-          </button>
-          <button onClick={() => { setActiveView("handbook"); setIsEditing(false) }} className={`relative px-4 py-3 text-sm font-medium transition-colors ${activeView === "handbook" ? "text-foreground after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary" : "text-muted-foreground hover:text-foreground"}`}>
-            Handbook & FAQs <span className="ml-1.5 text-xs text-muted-foreground">{data?.knowledge.length ?? ""}</span>
-          </button>
-        </div>
+        <section aria-labelledby="recommendations-heading" className="mb-6 overflow-hidden rounded-xl border bg-card shadow-sm">
+          <div className="flex flex-col gap-2 border-b px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
+            <div><h2 id="recommendations-heading" className="text-xl font-bold">Recommended updates</h2><p className="mt-1 text-sm text-muted-foreground">Review suggested answers before they appear in your family handbook.</p></div>
+            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-sm font-semibold text-primary">{recommendations.length} to review</span>
+          </div>
+          {recommendationError && <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3 text-sm text-destructive" role="alert">{recommendationError}<Button variant="outline" size="sm" onClick={() => void loadRecommendations()}>Try again</Button></div>}
+          {recommendations.length > 0 && <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between"><div className="relative w-full sm:max-w-sm"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Search recommendations" placeholder="Search questions or answers" value={recommendationSearch} onChange={(event) => setRecommendationSearch(event.target.value)} className="pl-9" /></div><fieldset className="flex gap-1 rounded-lg bg-muted p-1"><legend className="sr-only">Filter recommendations</legend>{(["all", "ready", "staff"] as const).map((filter) => <button type="button" key={filter} aria-pressed={recommendationFilter === filter} onClick={() => setRecommendationFilter(filter)} className={`rounded-md px-3 py-1.5 text-xs font-medium ${recommendationFilter === filter ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{filter === "all" ? "All" : filter === "ready" ? "Ready to publish" : "Needs staff"}</button>)}</fieldset></div>}
+          {isLoadingRecommendations && recommendations.length === 0 ? <div className="px-5 py-6 text-sm text-muted-foreground"><LoaderCircle className="mr-2 inline size-4 animate-spin" />Looking for useful FAQ updates…</div> : visibleRecommendations.length ? <div className="divide-y divide-border">{visibleRecommendations.map((recommendation) => <article key={recommendation.id} className="relative grid gap-4 px-5 py-4 pl-7 lg:grid-cols-[minmax(0,1fr)_auto]"><span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${recommendation.requiresStaffInput ? "bg-amber-500" : "bg-emerald-500"}`} /><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Badge variant="outline" className={recommendation.requiresStaffInput ? "border-amber-300 bg-amber-50 text-amber-800" : "border-emerald-300 bg-emerald-50 text-emerald-800"}>{recommendation.requiresStaffInput ? <><CircleHelp className="mr-1 size-3.5" />Needs staff</> : <><CheckCircle2 className="mr-1 size-3.5" />Ready to publish</>}</Badge><span className="text-xs text-muted-foreground">{recommendation.category} · {recommendation.operation === "update" ? "Update existing section" : recommendation.kind === "handbook_update" ? "Handbook article" : "New FAQ"}</span></div><h3 className="mt-2 font-semibold leading-snug">{recommendation.title}</h3><p className="mt-1 text-sm text-muted-foreground">{recommendation.shortAnswer}</p><p className="mt-2 text-xs leading-relaxed text-muted-foreground">{humanizeEvidence(Array.isArray(recommendation.evidence) ? recommendation.evidence.join(" · ") : recommendation.evidence)}</p><p className="mt-1 text-xs text-muted-foreground">{recommendation.requiresStaffInput ? "Needs center details" : <>Source: {recommendation.sourceKnowledgeId ? <a href={`/handbook/${encodeURIComponent(recommendation.sourceKnowledgeId)}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{recommendation.sourceLabel}</a> : recommendation.sourceLabel}</>}</p></div><div className="flex flex-wrap items-center gap-2 lg:justify-end"><Button size="sm" className="gap-1.5" disabled={recommendationActionId === recommendation.id || recommendation.requiresStaffInput} onClick={() => void updateRecommendation(recommendation.id, "approve")}><Check className="size-4" />Approve</Button><Button size="sm" variant="outline" disabled={recommendationActionId === recommendation.id} onClick={() => { setEditingRecommendationId(recommendation.id); setDraft({ title: recommendation.title, shortAnswer: recommendation.shortAnswer, answer: recommendation.answer, sourceLabel: recommendation.sourceLabel, category: recommendation.category, isFeatured: recommendation.isFeatured, startsAt: toDateInput(recommendation.startsAt), endsAt: toDateInput(recommendation.endsAt), topicId: recommendation.topicId }); setSaveError(""); setIsEditing(true) }}>Edit</Button><Button size="sm" variant="ghost" disabled={recommendationActionId === recommendation.id} onClick={() => void updateRecommendation(recommendation.id, "dismiss")}>Dismiss</Button></div></article>)}</div> : <p className="px-5 py-6 text-sm text-muted-foreground">{recommendations.length ? "No recommendations match these filters." : "No updates need review right now. New suggestions will appear as families ask questions the handbook could answer better."}</p>}
+        </section>
 
         {isLoading && !data ? <Card className="flex min-h-72 items-center justify-center"><div className="flex items-center gap-3 text-muted-foreground"><LoaderCircle className="h-5 w-5 animate-spin" /> Loading your center…</div></Card> : activeView === "stream" ? (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-            <Card className="min-w-0 shadow-hard">
-              <CardHeader className="border-b-2 pb-4">
-                <CardTitle className="text-xl font-bold">Every question, as it comes in</CardTitle>
+            <Card className="min-w-0 shadow-sm">
+                <CardHeader className="border-b-2 pb-4">
+                <CardTitle className="text-xl font-bold">What families are asking</CardTitle>
                 <CardDescription className="text-sm">Recent parent questions update every 15 seconds. Private child questions appear without names or message details.</CardDescription>
               </CardHeader>
               <div className="divide-y-2 divide-border">
@@ -434,7 +539,7 @@ export default function AdminConsole() {
           </div>
         ) : activeView === "inbox" ? (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.88fr)]">
-            <Card className="min-w-0 shadow-hard">
+            <Card className="min-w-0 shadow-sm">
               <CardHeader className="border-b pb-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div><CardTitle className="text-lg">Questions families are asking</CardTitle><CardDescription className="mt-1">Similar questions are grouped into topics. Counts use anonymous sessions.</CardDescription></div>
@@ -443,19 +548,20 @@ export default function AdminConsole() {
                 <div className="relative mt-4"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Search question topics" placeholder="Search topics or parent wording" value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" /></div>
               </CardHeader>
               <div className="divide-y">
-                {visibleTopics.length ? visibleTopics.map((topic) => (
-                  <button key={topic.id} onClick={() => { setSelectedTopicId(topic.id); setAssistSuggestions([]); setAssistError("") }} className={`w-full px-4 py-3 text-left transition-colors hover:bg-muted/50 ${topic.id === selectedTopic?.id ? "bg-muted" : ""}`}>
+                {topicGroups.length ? topicGroups.map(([category, topics]) => <section key={category} aria-label={`${category} category`}>
+                  <h3 className="flex items-center gap-2 bg-muted/50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{category}{topics.some((topic) => topic.isCategorySuggested) && <span className="font-normal normal-case tracking-normal">Suggested</span>}</h3>
+                  {topics.map((topic) => <button key={topic.id} onClick={() => { setSelectedTopicId(topic.id); setAssistSuggestions([]); setAssistError("") }} className={`w-full px-4 py-3 text-left transition-colors hover:bg-muted/50 ${topic.id === selectedTopic?.id ? "bg-muted" : ""}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0"><div className="mb-2 flex flex-wrap items-center gap-2"><Badge variant={statusVariant(topic.status)}>{statusLabel(topic.status)}</Badge><span className="text-xs text-muted-foreground">{formatRelativeTime(topic.lastAskedAt)}</span></div><p className="font-medium leading-snug">{topic.title}</p><p className="mt-1 line-clamp-1 text-sm text-muted-foreground">“{topic.examples[0] ?? "Parent question"}”</p></div>
                       <div className="shrink-0 text-right"><div className="text-lg font-semibold tabular-nums">{topic.questionCount}</div><div className="text-xs text-muted-foreground">questions</div><div className="mt-1 text-xs text-muted-foreground">{topic.sessionCount} sessions</div></div>
                     </div>
-                  </button>
-                )) : <div className="p-10 text-center text-sm text-muted-foreground">No question topics match that search.</div>}
+                  </button>)}
+                </section>) : <div className="p-10 text-center text-sm text-muted-foreground">No question topics match that search.</div>}
               </div>
             </Card>
 
             <div className="space-y-5">
-              <Card className="shadow-hard">
+              <Card className="shadow-sm">
                 {selectedTopic ? <>
                   <CardHeader>
                     <div className="mb-2 flex items-center justify-between gap-3"><Badge variant={statusVariant(selectedTopic.status)}>{statusLabel(selectedTopic.status)}</Badge><span className="text-xs text-muted-foreground">Last asked {formatRelativeTime(selectedTopic.lastAskedAt).toLowerCase()}</span></div>
@@ -463,10 +569,10 @@ export default function AdminConsole() {
                     <CardDescription className="flex flex-wrap gap-x-3 gap-y-1 pt-1"><span>{selectedTopic.questionCount} questions</span><span>·</span><span>{selectedTopic.sessionCount} anonymous sessions</span></CardDescription>
                   </CardHeader>
                   <CardContent className="flex flex-col gap-5">
-                    <div><h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">How families ask</h3><div className="flex flex-col gap-2">{selectedTopic.examples.slice(0, 3).map((example, index) => <p key={`${example}-${index}`} className="rounded-md border px-3 py-2 text-sm text-muted-foreground">“{example}”</p>)}</div><p className="mt-2 text-xs text-muted-foreground">Names and child details are removed from this view.</p></div>
-                    <div className="rounded-md border p-4"><div className="mb-2 flex items-center gap-2 text-sm font-semibold"><WandSparkles className="size-4 text-primary" /> Admin assistant</div><p className="text-sm text-muted-foreground">Use center history to draft a response or shape this into a short front desk FAQ. You approve every change.</p><div className="mt-3 grid gap-2 sm:grid-cols-2"><Button variant="outline" size="sm" className="justify-start gap-2" disabled={assistMode !== null} onClick={() => void askAssistant("knowledge", selectedTopic)}>{assistMode === "knowledge" ? <LoaderCircle className="animate-spin" data-icon="inline-start" /> : <WandSparkles data-icon="inline-start" />} Draft an answer</Button><Button variant="outline" size="sm" className="justify-start gap-2" onClick={() => openNewEntry({ topicId: selectedTopic.id, title: selectedTopic.title, category: "Family questions" })}><Plus data-icon="inline-start" /> Add to handbook</Button></div></div>
+                    <div><h3 className="mb-2 text-sm font-semibold">How families ask</h3><div className="flex flex-col gap-2">{selectedTopic.examples.slice(0, 3).map((example, index) => <p key={`${example}-${index}`} className="border px-3 py-2 text-sm text-muted-foreground">“{example}”</p>)}</div><p className="mt-2 text-xs text-muted-foreground">Names and child details are removed from this view.</p></div>
+                    <div className="border p-4"><div className="mb-2 flex items-center gap-2 text-sm font-semibold"><WandSparkles className="size-4 text-primary" /> Admin assistant</div><p className="text-sm text-muted-foreground">Use center history to draft a response or shape this into a short front desk FAQ. You approve every change.</p><div className="mt-3 grid gap-2 sm:grid-cols-2"><Button variant="outline" size="sm" className="justify-start gap-2" disabled={assistMode !== null} onClick={() => void askAssistant("knowledge", selectedTopic)}>{assistMode === "knowledge" ? <LoaderCircle className="animate-spin" data-icon="inline-start" /> : <WandSparkles data-icon="inline-start" />} Draft an answer</Button><Button variant="outline" size="sm" className="justify-start gap-2" onClick={() => openNewEntry({ topicId: selectedTopic.id, title: selectedTopic.title, category: "Family questions" })}><Plus data-icon="inline-start" /> Add to handbook</Button></div></div>
                     {assistError && <p className="text-sm text-destructive" role="alert">{assistError}</p>}
-                    {assistResultMode === "knowledge" && assistSuggestions.length > 0 && <div className="rounded-lg border bg-card p-3"><div className="mb-2 flex items-center justify-between text-xs font-semibold"><span>Assistant suggestions</span><Button size="sm" variant="ghost" onClick={() => openNewEntry({ topicId: selectedTopic.id, title: selectedTopic.title, answer: assistSuggestions[0], category: "Family questions" })}>Review & edit <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button></div><p className="line-clamp-4 text-sm text-muted-foreground">{assistSuggestions[0]}</p></div>}
+                    {assistResultMode === "knowledge" && assistSuggestions.length > 0 && <div className="border bg-card p-3"><div className="mb-2 flex items-center justify-between text-xs font-semibold"><span>Assistant suggestions</span><Button size="sm" variant="ghost" onClick={() => openNewEntry({ topicId: selectedTopic.id, title: selectedTopic.title, answer: assistSuggestions[0], category: "Family questions" })}>Review & edit <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button></div><p className="line-clamp-4 text-sm text-muted-foreground">{assistSuggestions[0]}</p></div>}
                     {selectedTopic.status === "needs_answer" && <Button className="w-full gap-2" onClick={() => openNewEntry({ topicId: selectedTopic.id, title: selectedTopic.title, category: "Family questions" })}>Write an approved answer <ChevronRight className="h-4 w-4" /></Button>}
                   </CardContent>
                 </> : <div className="p-12 text-center text-sm text-muted-foreground">No topics yet. Parent questions will appear here as they come in.</div>}
@@ -476,7 +582,7 @@ export default function AdminConsole() {
           </div>
         ) : (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-            <Card className="shadow-hard">
+            <Card className="shadow-sm">
               <CardHeader className="flex-row items-center justify-between gap-4 border-b pb-4"><div><CardTitle className="text-lg">Center handbook</CardTitle><CardDescription className="mt-1">Approved answers, sourced to your center’s policies and updates.</CardDescription></div><Button size="sm" onClick={() => openNewEntry()}><Plus className="mr-1 h-4 w-4" /> Add answer</Button></CardHeader>
               <div className="divide-y">{(data?.knowledge ?? []).map((entry) => <button key={entry.id} onClick={() => openEntry(entry)} className="flex w-full items-start justify-between gap-4 px-5 py-4 text-left hover:bg-muted/40"><div className="min-w-0"><div className="mb-1 flex flex-wrap items-center gap-2"><span className="font-medium">{entry.title}</span>{entry.isFeatured && <Badge variant="secondary" className="text-[10px]">Front desk</Badge>}</div><p className="line-clamp-2 text-sm text-muted-foreground">{entry.shortAnswer}</p><span className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground"><FileText className="h-3.5 w-3.5" />{entry.sourceLabel}</span></div><ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" /></button>)}{!data?.knowledge.length && <div className="p-10 text-center text-sm text-muted-foreground">Your handbook is ready for its first approved answer.</div>}</div>
             </Card>
@@ -487,23 +593,26 @@ export default function AdminConsole() {
 
       {isEditing && <div className="fixed inset-0 z-40 flex justify-end bg-foreground/20" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setIsEditing(false) }}>
         <section role="dialog" aria-modal="true" aria-labelledby="editor-heading" className="flex h-full w-full max-w-lg flex-col overflow-y-auto border-l bg-background">
-          <div className="flex items-start justify-between border-b px-6 py-5"><div><p className="mb-1 text-xs font-medium uppercase tracking-wider text-primary">Center handbook</p><h2 id="editor-heading" className="text-xl font-semibold">{draft.id ? "Edit answer" : "Add an answer"}</h2><p className="mt-1 text-sm text-muted-foreground">Everything here is reviewed by your team before families see it.</p></div><Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>Close</Button></div>
+          <div className="flex items-start justify-between border-b px-6 py-5"><div><h2 id="editor-heading" className="text-xl font-semibold">{editingRecommendationId ? "Edit recommended content" : draft.id ? "Edit answer" : "Add an answer"}</h2><p className="mt-1 text-sm text-muted-foreground">{editingRecommendationId ? "Save your edits to the recommendation, then approve it to publish." : "Everything here is reviewed by your team before families see it."}</p></div><Button variant="ghost" size="sm" onClick={() => { setIsEditing(false); setEditingRecommendationId(null) }}>Close</Button></div>
           <form onSubmit={saveKnowledge} className="flex min-h-0 flex-1 flex-col">
             <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
               {saveError && <Alert variant="destructive"><CircleHelp className="h-4 w-4" /><AlertTitle>Couldn’t save this answer</AlertTitle><AlertDescription>{saveError}</AlertDescription></Alert>}
+              {editingRecommendationId && recommendationError && <p role="alert" className="text-sm text-destructive">{recommendationError}</p>}
               <Field label="FAQ title" hint="Keep it short so it fits on the front desk screen."><div className="flex gap-2"><Input aria-label="FAQ title" required maxLength={65} value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="e.g. Are we open on the teacher workday?" /><Button type="button" variant="outline" size="icon" aria-label="Suggest a shorter FAQ title" title="Suggest a shorter title" disabled={!draft.title || assistMode === "title"} onClick={() => void askAssistant("title")}><WandSparkles className="h-4 w-4" /></Button></div><div className="mt-1 flex justify-between text-xs text-muted-foreground"><span>{assistMode === "title" ? "Finding a shorter title…" : "Families see this question first."}</span><span>{draft.title.length}/65</span></div>{assistSuggestions.length > 0 && assistMode === null && <div className="mt-2 flex flex-wrap gap-2">{assistSuggestions.map((suggestion) => <Button key={suggestion} type="button" size="sm" variant="secondary" onClick={() => applySuggestion(suggestion)}>{suggestion}</Button>)}</div>}</Field>
               <Field label="Short answer" hint="One sentence for the front desk card."><Textarea aria-label="Short answer" required rows={2} maxLength={180} value={draft.shortAnswer} onChange={(event) => setDraft((current) => ({ ...current, shortAnswer: event.target.value }))} placeholder="A clear, direct answer in plain language." /><div className="mt-1 text-right text-xs text-muted-foreground">{draft.shortAnswer.length}/180</div></Field>
               <Field label="Full answer"><Textarea aria-label="Full answer" required rows={5} value={draft.answer} onChange={(event) => setDraft((current) => ({ ...current, answer: event.target.value }))} placeholder="Include the details families need and any next step." /></Field>
               <Field label="Source" hint="Name the handbook section, center update, or website page."><Input aria-label="Source" required value={draft.sourceLabel} onChange={(event) => setDraft((current) => ({ ...current, sourceLabel: event.target.value }))} placeholder="e.g. Family handbook · Hours & closures" /></Field>
               <Field label="Category"><Input aria-label="Category" value={draft.category} onChange={(event) => setDraft((current) => ({ ...current, category: event.target.value }))} placeholder="General, meals, schedule…" /></Field>
-              <div className="rounded-lg border p-4"><label className="flex cursor-pointer items-start gap-3"><input type="checkbox" checked={draft.isFeatured} onChange={(event) => setDraft((current) => ({ ...current, isFeatured: event.target.checked }))} className="mt-1 h-4 w-4 accent-primary" /><span><span className="block text-sm font-medium">Show on front desk</span><span className="mt-0.5 block text-xs text-muted-foreground">Feature this answer as a visible FAQ card for parents.</span></span></label></div>
+              <div className="border p-4"><label className="flex cursor-pointer items-start gap-3"><input type="checkbox" checked={draft.isFeatured} onChange={(event) => setDraft((current) => ({ ...current, isFeatured: event.target.checked }))} className="mt-1 h-4 w-4 accent-primary" /><span><span className="block text-sm font-medium">Show on front desk</span><span className="mt-0.5 block text-xs text-muted-foreground">Feature this answer as a visible FAQ card for parents.</span></span></label></div>
               <div className="grid gap-4 sm:grid-cols-2"><Field label="Starts on" hint="Optional"><Input type="date" value={draft.startsAt} onChange={(event) => setDraft((current) => ({ ...current, startsAt: event.target.value }))} /></Field><Field label="Ends on" hint="Optional"><Input type="date" value={draft.endsAt} onChange={(event) => setDraft((current) => ({ ...current, endsAt: event.target.value }))} /></Field></div>
               <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"><BookOpen className="mt-0.5 h-4 w-4 shrink-0" /> Published answers become part of the center handbook that supports parent responses. Seasonal dates keep time-sensitive information current.</p>
             </div>
-            <div className="flex items-center justify-between border-t bg-background px-6 py-4"><Button type="button" variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button><Button type="submit" disabled={isSaving || !draft.title.trim() || !draft.answer.trim() || !draft.sourceLabel.trim()} className="gap-2">{isSaving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}{isSaving ? "Saving…" : "Save to handbook"}</Button></div>
+            <div className="flex items-center justify-between border-t bg-background px-6 py-4"><Button type="button" variant="ghost" onClick={() => { setIsEditing(false); setEditingRecommendationId(null) }}>Cancel</Button><Button type="submit" disabled={isSaving || recommendationActionId !== null || !draft.title.trim() || !draft.answer.trim() || !draft.sourceLabel.trim()} className="gap-2">{isSaving || recommendationActionId ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}{editingRecommendationId ? "Save edits" : isSaving ? "Saving…" : "Save to handbook"}</Button></div>
           </form>
         </section>
       </div>}
+        </div>
+      </div>
     </div>
   )
 }
@@ -513,7 +622,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 function MetricCard({ icon, label, value, footnote }: { icon: React.ReactNode; label: string; value: string; footnote: string }) {
-  return <Card><CardContent className="flex items-start justify-between p-4"><div><p className="text-sm text-muted-foreground">{label}</p><p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{value}</p><p className="mt-1 text-xs text-muted-foreground">{footnote}</p></div><span className="flex size-8 items-center justify-center rounded-md border text-primary">{icon}</span></CardContent></Card>
+  return <Card><CardContent className="flex items-start justify-between p-4"><div><p className="text-sm text-muted-foreground">{label}</p><p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{value}</p><p className="mt-1 text-xs text-muted-foreground">{footnote}</p></div><span className="flex size-8 items-center justify-center border text-primary">{icon}</span></CardContent></Card>
 }
 
 function SeasonalPanel({ suggestions, isLoading, error, onSuggest, onAdd }: { suggestions: Suggestion[]; isLoading: boolean; error: string; onSuggest: () => void; onAdd: (title: string) => void }) {

@@ -4,11 +4,13 @@ A calmer front desk for childcare families, with a companion workspace for cente
 
 ## What works
 
-- **Parent desk:** up to six featured FAQs in a spaced, responsive card grid with one-sentence answers, full sourced answers, and text questions grounded in the active center handbook.
+- **Parent desk:** desktop and iPad views put the question and answer on the left and up to eight featured FAQs on the right. On phones, the question comes first and FAQ rows expand progressively to show a short sourced answer. Families can ask with Shift + Enter, stay on the same screen for the answer, and open the exact source section in the [public handbook](src/app/handbook/page.tsx).
 - **Time-aware knowledge:** staff can feature FAQs and set start/end dates for seasonal information. Expired entries leave the parent experience automatically.
 - **Question stream and demand inbox:** staff see each submitted public question and its answer/source status. Related questions become de-identified topics with question and anonymous-session counts. Missing answers and answers needing review are called out.
 - **Staff workflow:** approve a sourced handbook entry from a topic, including its parent-facing title, short answer, source label, and visibility dates. Published content immediately becomes searchable and can resolve the topic.
-- **Admin assistant:** Vercel AI SDK tools retrieve current handbook entries, grouped questions, and prior-year seasonal demand to suggest titles, answer drafts, and timely FAQ ideas. Staff review all suggestions before publishing.
+- **Admin recommendations:** opening Admin reviews published handbook entries, grouped parent questions, and seasonal demand. Gemini creates complete, persisted drafts for FAQ, staff-answer, or handbook changes. Staff can approve the saved draft instantly, edit it, or dismiss it. Unsupported policy facts require staff input before publication. The fixed-width admin workspace has searchable, status-marked recommendation rows and handbook-category question groups.
+- **Center settings:** `/admin/settings` lets staff update the center name, hours, tagline, handbook title, website, and agent guidance for tone, audience, preferred and forbidden terms, and a center glossary. Changes to public center details appear on the family desk after saving.
+- **Linkable handbook:** `/handbook` and `/handbook/[id]` render approved, currently effective sections as public pages. The sitemap lists each section, and source links from parent answers open the matching page.
 - **Private child path:** a demo family PIN gates fictional teacher-message search through `@child`. Child-specific questions are excluded from public topic analytics, and the answer clears from the shared screen after 30 seconds or when the tab is hidden.
 
 The prototype uses **Little Lantern Learning Center**, a fictional center with seeded handbook entries, dated center updates, historical question counts, and one fictional child. It does not connect to Brightwheel's private APIs or use real family data. Audio is a stretch goal.
@@ -38,4 +40,4 @@ Convex function definitions and the fictional seed live in `convex/`. The seed i
 
 The center handbook and dated staff updates are the only sources for generated answers. A model response must cite IDs from the retrieved records; if it cannot, the parent sees a staff handoff. Staff, not the model, decide what becomes authoritative. Public question tracking stores a general topic and anonymous session key rather than raw child-specific text.
 
-The UI starts from the ShadCN `b6a2WHJ20` preset and adapts rounded Neubrutalism details from the Brightflare logo: flat blue, teal, amber, and pink accents, dark outlines, and crisp offset shadows. Answers and sources stay on calm white surfaces for readability.
+The UI uses ShadCN components and a simple theme guided by the `b51GFh7y6` preset. Brightflare blue is the primary action color; teal, amber, and pink add restrained accents. Soft borders, white reading surfaces, and pale color sections keep the parent iPad view and staff dashboard easy to scan. The earlier Neubrutalism treatment was removed after visual review.

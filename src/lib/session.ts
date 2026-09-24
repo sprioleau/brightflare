@@ -90,7 +90,8 @@ export function isSameOrigin(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
   if (!origin) return true;
   try {
-    return new URL(origin).host === request.nextUrl.host;
+    const originHost = new URL(origin).host;
+    return originHost === request.nextUrl.host || originHost === request.headers.get("host");
   } catch {
     return false;
   }

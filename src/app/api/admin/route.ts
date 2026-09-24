@@ -47,6 +47,12 @@ export async function GET(request: NextRequest) {
         status: topic.status,
         lastAskedAt: new Date(topic.lastAskedAt).toISOString(),
         examples: topic.recentExamples,
+        category: result.knowledge.find((entry) => entry.id === topic.knowledgeId)?.category ??
+          (/allerg|illness|sick|fever|medic/i.test(topic.canonicalTitle) ? "Health" :
+            /lunch|meal|food/i.test(topic.canonicalTitle) ? "Meals" :
+            /pickup|pick.up|arrival/i.test(topic.canonicalTitle) ? "Safety" :
+            /holiday|closed|closure|learning day|labor day|calendar/i.test(topic.canonicalTitle) ? "Closures and events" : "Other questions"),
+        isCategorySuggested: !result.knowledge.some((entry) => entry.id === topic.knowledgeId),
       }))
       .sort((left, right) => right.questionCount - left.questionCount);
     const questions = result.recentQuestions.map((event) => ({
