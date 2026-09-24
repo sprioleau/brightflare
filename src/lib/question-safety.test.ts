@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isPrivateChildQuestion, makeCanonicalKey, matchExistingTopic } from "./question-safety";
+import { isPrivateChildQuestion, makeCanonicalKey, matchExistingTopic, shouldSuppressAnswerDraft } from "./question-safety";
 
 describe("question privacy routing", () => {
   it("requires the private path for a child mention or daily update", () => {
@@ -10,6 +10,12 @@ describe("question privacy routing", () => {
   it("keeps general handbook questions available without a family login", () => {
     expect(isPrivateChildQuestion("What is the fever policy for my child?")).toBe(false);
     expect(isPrivateChildQuestion("Are you open on Veterans Day?")).toBe(false);
+  });
+
+  it("suppresses provisional answers for private and health questions", () => {
+    expect(shouldSuppressAnswerDraft("@child What did Maya eat today?")).toBe(true);
+    expect(shouldSuppressAnswerDraft("What is the center's fever policy?")).toBe(true);
+    expect(shouldSuppressAnswerDraft("Are you open on Veterans Day?")).toBe(false);
   });
 
   it("groups wording variants under a stable topic key", () => {

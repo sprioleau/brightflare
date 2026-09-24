@@ -40,8 +40,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# docs
-docs
+# Local working notes stay private; submission artifacts are shareable.
+/docs/*
+!/docs/submission.md
+!/docs/brightflare-one-pager.pdf
+!/docs/functionality-audit.md
 
 # local agent guidance generated from official skill installers
 .agents/skills/

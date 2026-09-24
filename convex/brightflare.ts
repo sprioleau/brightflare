@@ -808,6 +808,124 @@ export const updateTopicStatus = mutation({
   },
 });
 
+const littleLanternAdditionalKnowledge = [
+  {
+    seedKey: "little-lantern-tuition-2026",
+    title: "What is tuition for each age group?",
+    shortAnswer: "Five-day tuition is $2,150 per month for infants, $1,950 for toddlers, and $1,750 for preschoolers.",
+    answer: "Little Lantern's fictional five-day weekly tuition is $2,150 per month for infants, $1,950 for toddlers, and $1,750 for preschoolers. Tuition is billed on the first business day of each month and is due by the fifth. Part-time availability and current openings vary; contact the office before making enrollment plans.",
+    sourceLabel: "Family Handbook · Tuition and enrollment",
+    category: "Tuition and fees", isFeatured: false, status: "published" as const,
+  },
+  {
+    seedKey: "little-lantern-tours-2026",
+    title: "How can I schedule a tour?",
+    shortAnswer: "Tours are offered Tuesday and Thursday mornings by appointment; contact the office to choose a time.",
+    answer: "Little Lantern offers family tours on Tuesday and Thursday mornings, between 9:00 and 11:30 AM, by appointment. Contact the office to confirm a time and which classrooms are available to visit. A tour does not reserve a space or guarantee enrollment.",
+    sourceLabel: "Family Handbook · Tours and enrollment",
+    category: "Tours and enrollment", isFeatured: true, status: "published" as const,
+  },
+  {
+    seedKey: "little-lantern-lunch-2026",
+    title: "Does the center provide lunch?",
+    shortAnswer: "Families pack lunch and snacks; label each container and include an ice pack for perishable food.",
+    answer: "Little Lantern does not provide lunch. Please pack a labeled lunch and snacks each day, with an ice pack for perishable food. Send water in a labeled, reusable bottle. If your child has a food allergy or needs a dietary accommodation, contact the office so staff can review the care plan with your family before the first day.",
+    sourceLabel: "Family Handbook · Meals and nutrition",
+    category: "Meals and nutrition", isFeatured: true, status: "published" as const,
+  },
+  {
+    seedKey: "little-lantern-illness-return-2026",
+    title: "When can my child return after an illness?",
+    shortAnswer: "After a fever, vomiting, or diarrhea, wait 24 hours without symptoms or symptom-reducing medicine before returning.",
+    answer: "For this fictional center's policy, a child may return after a fever, vomiting, or diarrhea when they have been free of that symptom for at least 24 hours without medicine used to reduce it. A child also needs to feel well enough to take part in the regular day. Please call the office if symptoms return or you are unsure whether the policy applies. This policy does not replace medical advice.",
+    sourceLabel: "Family Handbook · Health and wellness",
+    category: "Health", isFeatured: false, status: "published" as const,
+  },
+  {
+    seedKey: "little-lantern-medication-2026",
+    title: "Can staff give my child medication?",
+    shortAnswer: "Contact the office before bringing medication so staff can confirm the authorization and care-plan steps.",
+    answer: "The office must review the medication, written family authorization, and any required health-care instructions before staff can administer it. Keep medication in its original labeled container and hand it directly to a staff member; do not leave it in a child's bag. Contact the office to confirm what paperwork is needed. Staff cannot advise on a dose or whether medication is medically appropriate.",
+    sourceLabel: "Family Handbook · Medication and health plans",
+    category: "Health", isFeatured: false, status: "published" as const,
+  },
+  {
+    seedKey: "little-lantern-rest-time-2026",
+    title: "What is the rest-time routine?",
+    shortAnswer: "Preschool children have a quiet rest period after lunch; children who do not sleep are offered quiet activities.",
+    answer: "After lunch, preschool classrooms have a quiet rest period. Children are not required to sleep; those who are awake may choose a quiet activity while classmates rest. Ask your child's teacher about the classroom routine for their age group.",
+    sourceLabel: "Family Handbook · Daily schedule and rest",
+    category: "Daily routines", isFeatured: false, status: "published" as const,
+  },
+  {
+    seedKey: "little-lantern-thanksgiving-2026",
+    title: "Is the center open on Thanksgiving?",
+    shortAnswer: "Little Lantern will be closed Thursday, November 26, and Friday, November 27, 2026.",
+    answer: "Little Lantern will be closed on Thursday, November 26, and Friday, November 27, 2026, for Thanksgiving. Regular care resumes Monday, November 30. These are the center's confirmed 2026 dates.",
+    sourceLabel: "Center update · 2026 holiday calendar",
+    category: "Closures and events", isFeatured: true, startsAt: Date.UTC(2026, 10, 2), endsAt: Date.UTC(2026, 10, 27, 23, 59), status: "published" as const,
+  },
+  {
+    seedKey: "little-lantern-winter-holidays-2026",
+    title: "What are the winter holiday closures?",
+    shortAnswer: "The center will be closed December 24–25, 2026, and January 1, 2027.",
+    answer: "Little Lantern will be closed Thursday and Friday, December 24 and 25, 2026, and Friday, January 1, 2027. The center is open regular hours on December 21–23 and December 28–31. Care resumes Monday, January 4, 2027.",
+    sourceLabel: "Center update · 2026–27 holiday calendar",
+    category: "Closures and events", isFeatured: true, startsAt: Date.UTC(2026, 10, 30), endsAt: Date.UTC(2027, 0, 4, 23, 59), status: "published" as const,
+  },
+] as const;
+
+export const seedLittleLanternAdditions = internalMutation({
+  args: {},
+  returns: v.object({ centerId: v.union(v.id("centers"), v.null()), insertedCount: v.number() }),
+  handler: async (ctx) => {
+    const center = await ctx.db.query("centers").withIndex("by_slug", (q) => q.eq("slug", "little-lantern")).unique();
+    if (!center) return { centerId: null, insertedCount: 0 };
+
+    const published = await ctx.db.query("knowledge")
+      .withIndex("by_center_and_status", (q) => q.eq("centerId", center._id).eq("status", "published"))
+      .take(101);
+    const drafts = await ctx.db.query("knowledge")
+      .withIndex("by_center_and_status", (q) => q.eq("centerId", center._id).eq("status", "draft"))
+      .take(101);
+    if (published.length > 100 || drafts.length > 100) {
+      throw new Error("Seed update stopped because the center has more than 100 handbook records in one status. Increase the seed scan limit before retrying.");
+    }
+    const existingRows = [...published, ...drafts];
+    const rowsBySeedKey = new Map<string, (typeof existingRows)[number]>();
+    for (const entry of existingRows) {
+      if (entry.seedKey) rowsBySeedKey.set(entry.seedKey, entry);
+    }
+    const existingByContentKey = new Map<string, (typeof existingRows)[number]>(
+      existingRows.map((entry) => [`${entry.title}::${entry.sourceLabel}`, entry] as const),
+    );
+    let insertedCount = 0;
+    const reviewedAt = Date.UTC(2026, 8, 24);
+
+    for (const entry of littleLanternAdditionalKnowledge) {
+      const seededRow = rowsBySeedKey.get(entry.seedKey);
+      if (seededRow) continue;
+      const key = `${entry.title}::${entry.sourceLabel}`;
+      const existingRow = existingByContentKey.get(key);
+      if (existingRow) {
+        if (existingRow.seedKey === undefined) {
+          await ctx.db.patch(existingRow._id, { seedKey: entry.seedKey });
+        }
+        continue;
+      }
+      await ctx.db.insert("knowledge", {
+        ...entry,
+        centerId: center._id,
+        reviewedAt,
+        searchText: knowledgeSearchText(entry),
+      });
+      insertedCount += 1;
+    }
+
+    return { centerId: center._id, insertedCount };
+  },
+});
+
 export const seedLittleLantern = internalMutation({
   args: {},
   returns: v.object({ centerId: v.id("centers"), knowledgeCount: v.number(), topicCount: v.number(), historyCount: v.number(), childMessageCount: v.number() }),
@@ -828,6 +946,7 @@ export const seedLittleLantern = internalMutation({
       { title: "What happens on the October staff learning day?", shortAnswer: "The center is open regular hours on Monday, October 12, for enrolled children.", answer: "Little Lantern will be open from 7:30 AM to 5:30 PM on Monday, October 12, 2026. This is a staff learning day for the local school district; the center remains open for enrolled children.", sourceLabel: "Center update · October 2026 calendar", category: "Closures and events", isFeatured: true, startsAt: Date.UTC(2026, 8, 21), endsAt: Date.UTC(2026, 9, 12, 23, 59), status: "published" as const },
       { title: "Is the center open on Veterans Day?", shortAnswer: "The center will be closed Wednesday, November 11, for Veterans Day.", answer: "Little Lantern will be closed Wednesday, November 11, 2026, for Veterans Day. Regular care resumes Thursday, November 12.", sourceLabel: "Center update · November 2026 calendar", category: "Closures and events", isFeatured: true, startsAt: Date.UTC(2026, 9, 26), endsAt: Date.UTC(2026, 10, 11, 23, 59), status: "published" as const },
       { title: "What is the late pickup fee?", shortAnswer: "Please call the office if you may arrive after closing; staff will explain the handbook policy.", answer: "The handbook describes a late pickup fee when a child remains after closing. Please contact the office for the current fee and to let staff know if you are delayed.", sourceLabel: "Family Handbook · Hours and fees", category: "Tuition and fees", isFeatured: false, status: "draft" as const },
+      ...littleLanternAdditionalKnowledge,
     ];
     const ids: Id<"knowledge">[] = [];
     for (const entry of data) ids.push(await ctx.db.insert("knowledge", {

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f5f9fb" />
+  <title>Family desk · Brightflare hybrid preview</title>
+  <link rel="stylesheet" href="hybrid.css" />
+  <script src="hybrid.js" defer></script>
+</head>
+<body class="hybrid" data-page="family">
+  <a href="#main" class="skip-link">Skip to main content</a>
+  <header class="hybrid-header"><div class="hybrid-header-inner">
+    <a class="hybrid-brand" href="hybrid.html" aria-label="Brightflare family desk"><img src="assets/brightflare-logo-full.svg" alt="brightflare" /></a>
+    <span class="hybrid-center">Little Lantern Learning Center <small>Family desk</small></span>
+    <nav class="hybrid-nav" aria-label="Preview sections"><a href="hybrid.html" aria-current="page">Family desk</a><a href="hybrid-handbook.html">Handbook</a><a href="hybrid-admin.html">Staff workspace</a></nav>
+    <span class="hybrid-demo">Design preview</span><button type="button" class="motion-toggle" data-motion-toggle aria-pressed="false">Pause motion</button>
+  </div></header>
+  <main id="main" class="hybrid-main">
+    <span class="spark s1" aria-hidden="true">+</span><span class="spark s2" aria-hidden="true">+</span><span class="spark s3" aria-hidden="true">✳</span>
+    <div class="hybrid-main-head"><div><h1>How can we help today?</h1><p>Answers from Little Lantern’s handbook. Staff can help when a question needs a person.</p></div><span class="hours-pill">Mon–Fri · 7:30 AM–5:30 PM</span></div>
+    <div class="family-grid">
+      <section class="question-panel" aria-labelledby="question-title">
+        <h2 id="question-title">What would you like to know?</h2>
+        <p>Ask in your own words.</p>
+        <form class="ask-form">
+          <label class="sr-only" for="hybrid-question">Your question</label>
+          <textarea id="hybrid-question" name="question" placeholder="For example, what should my child bring?" required></textarea>
+          <div class="form-bottom"><span>Answers show their center source.</span><button class="gummy-button" type="submit">Find an answer <svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-arrow-up-right"></use></svg></button></div>
+        </form>
+        <div class="try-row"><span>Try:</span><button type="button" data-try-question="What should my child bring?">What to bring</button><button type="button" data-try-question="Are you open on Veterans Day?">Veterans Day</button></div>
+        <section class="answer" aria-label="Answer" aria-live="polite" hidden>
+          <div class="answer-head"><div><span class="answer-status" data-answer-status></span><h3 data-answer-question></h3></div><button type="button" data-close-answer aria-label="Close answer"><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-x"></use></svg></button></div>
+          <p data-answer-text></p><div class="answer-source">Source: <span data-answer-source></span></div>
+        </section>
+      </section>
+      <section class="faq-panel" aria-labelledby="faq-title">
+        <div class="faq-panel-heading"><div><h2 id="faq-title">Popular questions</h2><p>Quick answers approved by the center.</p></div><span class="faq-count">6 answers</span></div>
+        <details><summary>What are your hours?<span class="plus-icon" aria-hidden="true"><svg class="icon"><use href="hybrid-icons.svg#icon-plus"></use></svg></span></summary><div class="detail-body"><p>Little Lantern is open Monday through Friday from 7:30 AM to 5:30 PM. Please pick up your child by closing time.</p><a href="hybrid-handbook.html#hours">Read handbook section <svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-arrow-up-right"></use></svg></a><small>Family Handbook · Hours</small></div></details>
+        <details><summary>What should my child bring?<span class="plus-icon" aria-hidden="true"><svg class="icon"><use href="hybrid-icons.svg#icon-plus"></use></svg></span></summary><div class="detail-body"><p>Bring a labeled change of clothes, a refillable water bottle, and outerwear for the day’s weather. Infants also need labeled bottles and feeding supplies.</p><a href="hybrid-handbook.html#daily-routines">Read handbook section <svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-arrow-up-right"></use></svg></a><small>Family Handbook · What to bring</small></div></details>
+        <details><summary>When should my child stay home?<span class="plus-icon" aria-hidden="true"><svg class="icon"><use href="hybrid-icons.svg#icon-plus"></use></svg></span></summary><div class="detail-body"><p>Keep your child home for fever, vomiting, diarrhea, or symptoms that prevent comfortable participation. Call the office if you are unsure.</p><a href="hybrid-handbook.html#health">Read handbook section <svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-arrow-up-right"></use></svg></a><small>Family Handbook · Health and wellness</small></div></details>
+        <details><summary>Who can pick up my child?<span class="plus-icon" aria-hidden="true"><svg class="icon"><use href="hybrid-icons.svg#icon-plus"></use></svg></span></summary><div class="detail-body"><p>Only adults listed as authorized in the family account may pick up your child. Staff may ask for photo ID.</p><a href="hybrid-handbook.html#safety">Read handbook section <svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-arrow-up-right"></use></svg></a><small>Family Handbook · Safe arrival and pickup</small></div></details>
+        <details><summary>Does Little Lantern provide lunch?<span class="plus-icon" aria-hidden="true"><svg class="icon"><use href="hybrid-icons.svg#icon-plus"></use></svg></span></summary><div class="detail-body"><p>Little Lantern does not provide lunch. Please pack a labeled lunch and snacks each day, with an ice pack for perishable food.</p><a href="hybrid-handbook.html#meals">Read handbook section <svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-arrow-up-right"></use></svg></a><small>Family Handbook · Meals and nutrition</small></div></details>
+        <details><summary>How can I schedule a tour?<span class="plus-icon" aria-hidden="true"><svg class="icon"><use href="hybrid-icons.svg#icon-plus"></use></svg></span></summary><div class="detail-body"><p>Family tours are offered Tuesday and Thursday mornings by appointment. Contact the office to confirm a time and classroom availability.</p><a href="hybrid-handbook.html#tours">Read handbook section <svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-arrow-up-right"></use></svg></a><small>Family Handbook · Tours and enrollment</small></div></details>
+        <div class="trust-line"><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-sparkles"></use></svg><span><strong>Clear about uncertainty.</strong> If published guidance does not cover a question, we’ll suggest checking with staff.</span></div>
+      </section>
+    </div>
+  </main>
+  <footer class="hybrid-footer"><span>Little Lantern Learning Center · Fictional center preview</span><span>Hybrid direction · <a href="index.html">Compare directions</a></span></footer>
+</body>
+</html>

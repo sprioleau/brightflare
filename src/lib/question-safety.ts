@@ -5,6 +5,11 @@ export function isPrivateChildQuestion(question: string): boolean {
   );
 }
 
+export function shouldSuppressAnswerDraft(question: string): boolean {
+  return isPrivateChildQuestion(question)
+    || /\b(allerg(?:y|ies|ic)|asthma|chok(?:e|ing)|emergency|fever|injur(?:y|ies)|medicat(?:e|ed|ion)|medical|rash|seizure|sick|symptom|vomit(?:ing)?)\b/i.test(question);
+}
+
 export function makeCanonicalKey(title: string): string {
   return title
     .toLowerCase()

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#eef3f2" />
+  <title>Quiet Current · Brightflare visual exploration</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="demo.js" defer></script>
+</head>
+<body class="current">
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <header class="demo-top">
+    <a class="brand" href="index.html" aria-label="Brightflare visual explorations"><img src="assets/brightflare-logo.svg" alt="" />brightflare</a>
+    <span class="center-name">Little Lantern Learning Center <small>Family desk</small></span>
+    <nav class="demo-nav" aria-label="Design variations"><a href="bulletin.html">← 02 Bulletin</a><a href="index.html">All directions</a><span class="demo-badge">Static design demo</span></nav>
+  </header>
+  <main id="main" class="current-main">
+    <section class="current-intro" aria-labelledby="current-title">
+      <p class="eyebrow">Little Lantern Learning Center &nbsp; / &nbsp; Family desk</p>
+      <h1 id="current-title">Answers for<br /><em>the everyday.</em></h1>
+      <p>Ask a question. See the center information behind the answer, and know when staff should help.</p>
+    </section>
+    <div class="current-layout">
+      <section class="current-question" aria-labelledby="current-ask-title">
+        <span class="section-tag">Start here</span>
+        <h2 id="current-ask-title">What would you like to know?</h2>
+        <form class="ask-form">
+          <label for="current-question" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Your question</label>
+          <textarea id="current-question" name="question" placeholder="Ask about hours, packing, health guidance…" required></textarea>
+          <div class="current-form-bottom"><span>Illustrative design interaction</span><button class="current-btn" type="submit">Ask Brightflare &nbsp; ↗</button></div>
+        </form>
+        <div class="current-try"><span>Or start with</span><button type="button" data-try-question="What are the center hours?">center hours</button><button type="button" data-try-question="What should I pack?">what to pack</button></div>
+        <section class="answer" aria-live="polite" aria-label="Answer" hidden>
+          <div class="answer-head"><div><span class="answer-status" data-answer-status></span><h3 data-answer-question></h3></div><button type="button" data-close-answer aria-label="Close answer">×</button></div>
+          <p data-answer-text></p><div class="answer-source">Source &nbsp; · &nbsp; <span data-answer-source></span></div>
+        </section>
+      </section>
+      <section class="current-faq" aria-labelledby="current-faq-title">
+        <span class="section-tag">Already answered</span>
+        <h2 id="current-faq-title">Frequently asked</h2>
+        <p>Small answers, with their source close by.</p>
+        <details><summary>What are Little Lantern’s hours?</summary><p>Monday through Friday, 7:30 AM–5:30 PM.<small>Center details · illustrative content</small></p></details>
+        <details><summary>What goes in my child’s bag?</summary><p>Bring a labeled change of clothes and daily essentials. The classroom team can confirm the current list for your child.<small>Getting ready for school · illustrative content</small></p></details>
+        <details><summary>Where is the health guidance?</summary><p>The center team can share the latest guidance and help with questions specific to your child.<small>Health and wellness · staff confirmation</small></p></details>
+        <details><summary>Can I ask about my child here?</summary><p>Speak directly with center staff for personal questions about your child. This public desk covers general information.<small>Privacy guidance · illustrative content</small></p></details>
+        <div class="current-staff"><span aria-hidden="true">✳</span><span><b>Staff are always in the loop.</b> If a published answer isn’t available, we’ll say so clearly.</span></div>
+      </section>
+    </div>
+  </main>
+  <footer class="demo-footer"><span>Little Lantern Learning Center &nbsp; · &nbsp; Mon–Fri, 7:30 AM–5:30 PM</span><span>03 / Quiet Current &nbsp; · &nbsp; <a href="index.html">Compare all directions ↗</a></span></footer>
+</body>
+</html>

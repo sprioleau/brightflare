@@ -26,9 +26,20 @@ function DialogPortal({
 }
 
 function DialogClose({
+  className,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Close>) {
-  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
+  return (
+    <DialogPrimitive.Close
+      data-slot="dialog-close"
+      data-variant="outline"
+      className={cn(
+        "ui-button ui-button--secondary inline-flex min-h-11 min-w-11 items-center justify-center",
+        className
+      )}
+      {...props}
+    />
+  )
 }
 
 function DialogOverlay({

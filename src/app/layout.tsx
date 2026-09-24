@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
+import localFont from "next/font/local";
 import "./globals.css";
-import { cn } from "@/lib/utils";
+
+const manrope = localFont({
+  src: "../../public/fonts/manrope-variable.ttf",
+  variable: "--font-manrope",
+  weight: "400 800",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "brightflare",
@@ -9,11 +16,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="en"
-      className={cn("h-full", "antialiased", "font-sans")}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" data-scroll-behavior="smooth" className={`${manrope.variable} antialiased font-sans`}>
+      <body className="min-h-screen">{children}</body>
     </html>
   );
 }

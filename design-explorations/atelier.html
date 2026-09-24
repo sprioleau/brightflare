@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f7f2e8" />
+  <title>Warm Atelier · Brightflare visual exploration</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="demo.js" defer></script>
+</head>
+<body class="atelier">
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <header class="demo-top">
+    <a class="brand" href="index.html" aria-label="Brightflare visual explorations"><img src="assets/brightflare-logo.svg" alt="" />brightflare</a>
+    <span class="center-name">Little Lantern Learning Center <small>Family desk</small></span>
+    <nav class="demo-nav" aria-label="Design variations"><a href="index.html">All directions</a><a href="bulletin.html">02 Bulletin →</a><span class="demo-badge">Static design demo</span></nav>
+  </header>
+  <main id="main" class="atelier-shell">
+    <span class="atelier-plus p1" aria-hidden="true">+</span><span class="atelier-plus p2" aria-hidden="true">+</span><span class="atelier-plus p3" aria-hidden="true">+</span>
+    <section class="atelier-intro" aria-labelledby="atelier-title">
+      <p class="eyebrow">The family desk · Little Lantern Learning Center</p>
+      <h1 id="atelier-title">A little clarity for <span>today.</span></h1>
+      <p>Helpful answers from your center, with a clear handoff to staff when needed.</p>
+    </section>
+    <div class="atelier-meta"><span>✳</span><span>Here for your everyday questions</span><span class="line" aria-hidden="true"></span><span>Mon–Fri · 7:30 AM–5:30 PM</span></div>
+    <div class="atelier-content">
+      <section class="atelier-question" aria-labelledby="atelier-ask-title">
+        <h2 id="atelier-ask-title">What’s on your mind?</h2>
+        <p>Ask in your own words. We’ll look for a center-approved answer.</p>
+        <form class="ask-form">
+          <label for="atelier-question" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Your question</label>
+          <textarea id="atelier-question" name="question" placeholder="For example, what time does the center open?" required></textarea>
+          <div class="atelier-form-bottom"><span>Sample interaction for design review</span><button class="atelier-btn" type="submit">Find an answer &nbsp; ↗</button></div>
+        </form>
+        <div class="atelier-try"><span>Try one:</span><button type="button" data-try-question="What are the center hours?">Center hours</button><button type="button" data-try-question="What should I pack?">What to pack</button></div>
+        <section class="answer" aria-live="polite" aria-label="Answer" hidden>
+          <div class="answer-head"><div><span class="answer-status" data-answer-status></span><h3 data-answer-question></h3></div><button type="button" data-close-answer aria-label="Close answer">×</button></div>
+          <p data-answer-text></p><div class="answer-source">✳ &nbsp; <span data-answer-source></span></div>
+        </section>
+      </section>
+      <section class="atelier-faq" aria-labelledby="atelier-faq-title">
+        <h2 id="atelier-faq-title">Good to know</h2>
+        <p>A few things families ask most often.</p>
+        <details><summary>When is Little Lantern open?</summary><p>Monday through Friday, 7:30 AM–5:30 PM.<small>From center details · illustrative content</small></p></details>
+        <details><summary>What should my child bring?</summary><p>A labeled change of clothes and daily essentials. Your classroom team can confirm the current list for your child.<small>Getting ready for school · illustrative content</small></p></details>
+        <details><summary>Where can I find health guidance?</summary><p>Ask the center team for the latest health guidance, especially when a return date depends on your child's situation.<small>Health and wellness · staff confirmation</small></p></details>
+        <details><summary>Can I ask about my child here?</summary><p>For personal details about your child, speak directly with center staff. This public desk is for general center information.<small>Privacy guidance · illustrative content</small></p></details>
+        <div class="atelier-note"><span aria-hidden="true">✳</span><span><strong>People are part of the answer.</strong> If the handbook is unclear, we’ll say so and point you to staff.</span></div>
+      </section>
+    </div>
+  </main>
+  <footer class="demo-footer"><span>Little Lantern Learning Center · Family desk concept</span><span>01 / Warm Atelier &nbsp; · &nbsp; <a href="bulletin.html">Next direction →</a></span></footer>
+</body>
+</html>

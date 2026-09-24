@@ -5,6 +5,7 @@ import { api } from "../../../../../convex/_generated/api";
 import { getGeminiModel, getGeminiOverloadFallbackModel, isGeminiOverloaded } from "@/lib/ai-model";
 import { getConvexServerClient, getConvexServerSecret } from "@/lib/convex-server";
 import { getSessionRole, isSameOrigin } from "@/lib/session";
+import { createAnswerStreamResponse } from "@/lib/answer-stream";
 
 const inputSchema = z.object({
   mode: z.enum(["title", "seasonal", "knowledge"]),
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
   const agentOptions = {
     output: Output.object({ schema: outputSchema }),
     stopWhen: isStepCount(5),
-    maxRetries: 1,
+    maxRetries: 0,
     instructions: "You help center staff draft FAQ content. You may suggest edits but never publish or change the handbook. Always use the provided tools to check center evidence before making a claim about policy, schedules, or historical demand. Do not fabricate a policy. If no approved source answers a topic, suggest a concise question for staff to answer and clearly say staff confirmation is needed. Never include a child's private information. Return only useful short suggestions. For titles, each suggestion must fit within 65 characters.",
     tools: {
       inspectHandbook: tool({
@@ -122,6 +123,30 @@ export async function POST(request: NextRequest) {
     : parsed.data.mode === "title"
       ? `Use inspectHandbook. Suggest two or three plain-language FAQ titles of at most 65 characters for this staff draft: ${JSON.stringify(parsed.data.text)}. Preserve its meaning.`
       : `Use inspectHandbookEntry for the investigated topic, inspectHandbook for broader context, inspectRecentPublicQuestions for recent family wording, and inspectQuestionTrends. Topic ID: ${parsed.data.topicId || "none"}. Staff is investigating: ${JSON.stringify(parsed.data.text)}. Suggest a short answer draft only when directly supported by a current approved source. Otherwise, suggest the exact policy detail staff needs to confirm before publishing.`;
+  if (request.headers.get("accept")?.includes("application/x-ndjson")) {
+    function createAttempt(selectedModel: NonNullable<typeof model>, abortSignal: AbortSignal) {
+      return new ToolLoopAgent({ model: selectedModel, ...agentOptions }).stream({ prompt, abortSignal, timeout: { totalMs: 55_000, stepMs: 45_000 } });
+    }
+    const fallbackModel = getGeminiOverloadFallbackModel();
+    return createAnswerStreamResponse<z.infer<typeof outputSchema>, string[], z.infer<typeof outputSchema>>({
+      createAttempt: async (abortSignal) => await createAttempt(model, abortSignal),
+      createFallbackAttempt: fallbackModel ? async (abortSignal) => await createAttempt(fallbackModel, abortSignal) : undefined,
+      shouldFallback: isGeminiOverloaded,
+      signal: request.signal,
+      timeoutMs: 60_000,
+      getDraftValue: (partial) => {
+        const candidate = partial as { suggestions?: Array<string | undefined> };
+        if (!Array.isArray(candidate.suggestions)) return null;
+        const suggestions = candidate.suggestions.filter((suggestion): suggestion is string =>
+          typeof suggestion === "string" && suggestion.trim().length >= 4 && suggestion.trim().length <= 500,
+        );
+        return suggestions.length ? suggestions : null;
+      },
+      resolveFinal: async (output) => output,
+      onFailure: async () => undefined,
+      errorMessage: "The assistant could not prepare a suggestion. Please try again.",
+    });
+  }
   try {
     const { output } = await new ToolLoopAgent({ model, ...agentOptions }).generate({ prompt });
     return Response.json(output);

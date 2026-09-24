@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f5f9fb" />
+  <title>Staff workspace · Brightflare hybrid preview</title>
+  <link rel="stylesheet" href="hybrid.css" />
+  <script src="hybrid.js" defer></script>
+</head>
+<body class="hybrid" data-page="admin">
+  <a href="#main" class="skip-link">Skip to main content</a>
+  <header class="hybrid-header"><div class="hybrid-header-inner">
+    <a class="hybrid-brand" href="hybrid.html" aria-label="Brightflare family desk"><img src="assets/brightflare-logo-full.svg" alt="brightflare" /></a>
+    <span class="hybrid-center">Little Lantern Learning Center <small>Staff workspace</small></span>
+    <nav class="hybrid-nav" aria-label="Preview sections"><a href="hybrid.html">Family desk</a><a href="hybrid-handbook.html">Handbook</a><a href="hybrid-admin.html" aria-current="page">Staff workspace</a></nav>
+    <span class="hybrid-demo">Design preview</span><button type="button" class="motion-toggle" data-motion-toggle aria-pressed="false">Pause motion</button>
+  </div></header>
+  <main id="main" class="hybrid-main admin-main">
+    <span class="spark s1" aria-hidden="true">+</span><span class="spark s2" aria-hidden="true">+</span>
+    <div class="hybrid-main-head"><div><h1>Staff workspace</h1><p>See what families need and keep center answers current.</p></div><span class="hours-pill">Little Lantern · sample activity</span></div>
+    <div class="admin-layout">
+      <nav class="admin-menu" aria-label="Staff workspace views">
+        <button type="button" data-admin-view="dashboard" aria-current="page"><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-layout-dashboard"></use></svg>Dashboard</button>
+        <button type="button" data-admin-view="recommendations"><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-sparkles"></use></svg>Recommendations</button>
+        <button type="button" data-admin-view="questions"><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-messages-square"></use></svg>Questions</button>
+        <button type="button" data-admin-view="topics"><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-list-checks"></use></svg>Question topics</button>
+        <button type="button" data-admin-view="handbook"><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-book-open"></use></svg>Handbook</button>
+        <button type="button" data-admin-view="layout"><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-panel-left"></use></svg>Front desk layout</button>
+        <button type="button" data-admin-view="announcement"><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-megaphone"></use></svg>Announcement</button>
+        <div class="admin-menu-spacer" aria-hidden="true"></div>
+        <button type="button" data-admin-view="settings"><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-settings"></use></svg>Center settings</button>
+        <div class="admin-menu-note"><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-shield-check"></use></svg><span>Staff approve every published answer.</span></div>
+      </nav>
+      <div class="admin-content">
+        <section data-admin-panel="dashboard" aria-labelledby="dashboard-title">
+          <div class="admin-section-head"><div><h2 id="dashboard-title">Dashboard</h2><p>Sample center activity for visual review.</p></div><span class="sync-note"><span aria-hidden="true" class="sync-dot"></span>Updated just now</span></div>
+          <div class="metric-strip" aria-label="Activity summary">
+            <div><strong>24</strong><span>Questions this week</span></div><div><strong>3</strong><span>Topics needing an answer</span></div><div><strong>15</strong><span>Published handbook answers</span></div>
+          </div>
+          <div class="admin-overview-grid">
+            <section class="admin-surface" aria-labelledby="recent-title">
+              <div class="surface-head"><div><h3 id="recent-title">What families are asking</h3><p>Grouped topics, with personal details removed.</p></div><button type="button" class="text-action" data-jump-view="questions">View all <svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-arrow-right"></use></svg></button></div>
+              <div class="stream-row"><span class="status-dot amber"></span><div><strong>What is the late pickup fee?</strong><small>Needs staff answer · 3 questions</small></div><span class="row-time">Today</span></div>
+              <div class="stream-row"><span class="status-dot blue"></span><div><strong>When can a child return after illness?</strong><small>Published source available · 5 questions</small></div><span class="row-time">Yesterday</span></div>
+              <div class="stream-row"><span class="status-dot teal"></span><div><strong>Does the center provide lunch?</strong><small>Answered · 4 questions</small></div><span class="row-time">Tuesday</span></div>
+            </section>
+            <section class="admin-surface recommendation-teaser" aria-labelledby="teaser-title">
+              <div class="surface-head"><div><h3 id="teaser-title">Ready for your review</h3><p>Drafted from published center guidance.</p></div><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-sparkles"></use></svg></div>
+              <span class="mini-status">Source verified</span>
+              <h4>Feature the lunch policy</h4><p>Families ask about lunch often. The approved meals answer can be made easier to find on the family desk.</p>
+              <button type="button" class="gummy-button secondary" data-jump-view="recommendations">Review recommendation <svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-arrow-right"></use></svg></button>
+            </section>
+          </div>
+        </section>
+        <section data-admin-panel="questions" aria-labelledby="questions-title" hidden>
+          <div class="admin-section-head"><div><h2 id="questions-title">Question stream</h2><p>Recent public topics. Private child details stay out of this view.</p></div><span class="sync-note"><span aria-hidden="true" class="sync-dot"></span>Updated just now</span></div>
+          <div class="question-stream-layout">
+            <div class="admin-surface topic-list" aria-label="Question topics">
+              <button type="button" class="topic-row is-selected" data-topic="late-pickup"><span class="status-dot amber"></span><span><strong>What is the late pickup fee?</strong><small>Needs answer · 3 questions · today</small></span><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-chevron-right"></use></svg></button>
+              <button type="button" class="topic-row" data-topic="illness"><span class="status-dot blue"></span><span><strong>When can a child return after illness?</strong><small>Needs review · 5 questions · yesterday</small></span><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-chevron-right"></use></svg></button>
+              <button type="button" class="topic-row" data-topic="lunch"><span class="status-dot teal"></span><span><strong>Does the center provide lunch?</strong><small>Answered · 4 questions · Tuesday</small></span><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-chevron-right"></use></svg></button>
+            </div>
+            <section class="admin-surface topic-detail" aria-live="polite" aria-labelledby="topic-detail-title">
+              <span class="mini-status" data-topic-status>Needs staff answer</span><h3 id="topic-detail-title" data-topic-title>What is the late pickup fee?</h3>
+              <p class="detail-muted" data-topic-summary>Three families asked about the fee. The handbook draft directs families to the office but does not state a current amount.</p>
+              <h4>How families ask</h4><blockquote data-topic-example>“What happens if I’m five minutes late?”</blockquote>
+              <p class="privacy-note"><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-shield-check"></use></svg>Examples are de-identified before staff review.</p>
+              <button type="button" class="gummy-button secondary" data-open-editor data-editor-title="What is the late pickup fee?">Write an approved answer <svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-arrow-right"></use></svg></button>
+            </section>
+          </div>
+        </section>
+        <section data-admin-panel="topics" aria-labelledby="topics-title" hidden>
+          <div class="admin-section-head"><div><h2 id="topics-title">Question topics</h2><p>Group repeated questions so one approved answer can help more families.</p></div></div>
+          <div class="admin-surface topic-summary-list">
+            <div class="topic-summary-row"><span class="status-dot amber"></span><div><strong>Late pickup fee</strong><small>3 questions · Needs an approved amount</small></div><button type="button" class="small-button" data-open-topic="late-pickup">Review topic</button></div>
+            <div class="topic-summary-row"><span class="status-dot blue"></span><div><strong>Return after illness</strong><small>5 questions · Check current guidance</small></div><button type="button" class="small-button" data-open-topic="illness">Review topic</button></div>
+            <div class="topic-summary-row"><span class="status-dot teal"></span><div><strong>Lunch and snacks</strong><small>4 questions · Answered from handbook</small></div><button type="button" class="small-button" data-open-topic="lunch">Review topic</button></div>
+          </div>
+        </section>
+        <section data-admin-panel="handbook" aria-labelledby="admin-handbook-title" hidden>
+          <div class="admin-section-head"><div><h2 id="admin-handbook-title">Handbook</h2><p>Published center answers and their sources.</p></div><a class="small-button admin-link" href="hybrid-handbook.html">Open family view <svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-arrow-up-right"></use></svg></a></div>
+          <div class="admin-surface handbook-admin-list">
+            <div><span class="color-rail teal"></span><div><strong>What are your hours?</strong><small>Family Handbook · Hours · Shown on front desk</small></div><button type="button" class="small-button" data-open-editor data-editor-title="What are your hours?">Edit</button></div>
+            <div><span class="color-rail blue"></span><div><strong>What should my child bring?</strong><small>Family Handbook · What to bring · Shown on front desk</small></div><button type="button" class="small-button" data-open-editor data-editor-title="What should my child bring?">Edit</button></div>
+            <div><span class="color-rail pink"></span><div><strong>Does the center provide lunch?</strong><small>Family Handbook · Meals and nutrition · Shown on front desk</small></div><button type="button" class="small-button" data-open-editor data-editor-title="Does the center provide lunch?">Edit</button></div>
+            <div><span class="color-rail amber"></span><div><strong>What is the late pickup fee?</strong><small>Draft · Staff must confirm the current amount</small></div><button type="button" class="small-button" data-open-editor data-editor-title="What is the late pickup fee?">Review draft</button></div>
+          </div>
+        </section>
+        <section data-admin-panel="layout" aria-labelledby="layout-title" hidden>
+          <div class="admin-section-head"><div><h2 id="layout-title">Front desk layout</h2><p>Arrange the approved questions families see first.</p></div><a class="small-button admin-link" href="hybrid.html">Open family preview <svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-arrow-up-right"></use></svg></a></div>
+          <ol class="admin-surface featured-list" aria-label="Featured question order">
+            <li><span class="color-rail blue"></span><div><strong>What are your hours?</strong><small>Hours</small></div><div class="move-actions"><button type="button" data-move="up" aria-label="Move What are your hours up" disabled>Up</button><button type="button" data-move="down" aria-label="Move What are your hours down">Down</button></div></li>
+            <li><span class="color-rail teal"></span><div><strong>What should my child bring?</strong><small>Daily routines</small></div><div class="move-actions"><button type="button" data-move="up" aria-label="Move What should my child bring up">Up</button><button type="button" data-move="down" aria-label="Move What should my child bring down">Down</button></div></li>
+            <li><span class="color-rail amber"></span><div><strong>Does the center provide lunch?</strong><small>Meals and nutrition</small></div><div class="move-actions"><button type="button" data-move="up" aria-label="Move Does the center provide lunch up">Up</button><button type="button" data-move="down" aria-label="Move Does the center provide lunch down" disabled>Down</button></div></li>
+          </ol>
+          <p class="detail-muted">Use the controls to try a different order in this preview.</p>
+        </section>
+        <section data-admin-panel="announcement" aria-labelledby="announcement-title" hidden>
+          <div class="admin-section-head"><div><h2 id="announcement-title">Announcement</h2><p>Write a short center update for the family desk.</p></div></div>
+          <form class="admin-surface simple-form announcement-form">
+            <label for="announcement-name">Title</label><input id="announcement-name" name="title" placeholder="For example, upcoming center update" />
+            <label for="announcement-message">Message</label><textarea id="announcement-message" name="message" rows="5" placeholder="Write the information families need…"></textarea>
+            <label class="check-row"><input type="checkbox" name="isActive" />Show on family desk</label>
+            <div class="form-actions"><span data-announcement-state>Announcement is off.</span><button type="submit" class="gummy-button">Save announcement <svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-check"></use></svg></button></div>
+          </form>
+        </section>
+        <section data-admin-panel="settings" aria-labelledby="settings-title" hidden>
+          <div class="admin-section-head"><div><h2 id="settings-title">Center settings</h2><p>Keep center details and answer guidance current.</p></div></div>
+          <form class="admin-surface simple-form settings-form">
+            <label for="settings-center">Center name</label><input id="settings-center" name="center" value="Little Lantern Learning Center" required />
+            <label for="settings-hours">Center hours</label><input id="settings-hours" name="hours" value="Monday–Friday · 7:30 AM–5:30 PM" required />
+            <label for="settings-voice">Answer tone</label><select id="settings-voice" name="voice"><option>Warm and concise</option><option>Direct and concise</option><option>Friendly and detailed</option></select>
+            <div class="form-actions"><span>Staff changes in this preview stay local.</span><button type="submit" class="gummy-button">Save settings <svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-check"></use></svg></button></div>
+          </form>
+        </section>
+        <section data-admin-panel="recommendations" aria-labelledby="recommendations-title" hidden>
+          <div class="admin-section-head"><div><h2 id="recommendations-title">Recommendations</h2><p>Review source-backed ideas before anything appears for families.</p></div></div>
+          <div class="recommendation-list">
+            <article class="admin-surface recommendation-item" data-recommendation="lunch">
+              <div class="recommendation-top"><span class="mini-status">Source verified</span><span class="row-time">4 related questions</span></div>
+              <h3>Feature the lunch policy</h3><p>Little Lantern does not provide lunch. Families pack a labeled lunch and snacks with an ice pack for perishable food.</p>
+              <p class="recommendation-source"><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-book-open"></use></svg>Family Handbook · Meals and nutrition</p>
+              <div class="recommendation-actions"><button type="button" class="gummy-button secondary" data-approve-recommendation>Approve for family desk <svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-check"></use></svg></button><button type="button" class="small-button" data-open-editor data-editor-title="Feature the lunch policy">Review &amp; edit</button><button type="button" class="text-action" data-dismiss-recommendation>Dismiss</button></div>
+            </article>
+            <article class="admin-surface recommendation-item muted-recommendation">
+              <div class="recommendation-top"><span class="mini-status needs-input">Staff input needed</span><span class="row-time">3 related questions</span></div>
+              <h3>Confirm the late pickup fee</h3><p>The current published guidance does not state the amount. Staff should confirm the policy before an answer is published.</p>
+              <p class="recommendation-source"><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-circle-question-mark"></use></svg>Missing approved amount</p>
+              <div class="recommendation-actions"><button type="button" class="small-button" data-open-editor data-editor-title="Confirm the late pickup fee">Add staff details</button><span class="helper-text">Approval available after staff verification.</span></div>
+            </article>
+          </div>
+        </section>
+        <div class="admin-toast" role="status" aria-live="polite" hidden></div>
+      </div>
+    </div>
+  </main>
+  <dialog class="editor-drawer" aria-labelledby="editor-title"><form method="dialog" class="editor-form">
+    <div class="drawer-head"><div><h2 id="editor-title">Review handbook answer</h2><p>Changes in this preview stay in your browser.</p></div><button type="submit" value="cancel" class="icon-button" aria-label="Close editor"><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-x"></use></svg></button></div>
+    <div class="drawer-body"><label for="draft-title">Title</label><input id="draft-title" name="title" value="Feature the lunch policy" required /><label for="draft-answer">Answer for families</label><textarea id="draft-answer" name="answer" rows="7" required>Little Lantern does not provide lunch. Please pack a labeled lunch and snacks each day, with an ice pack for perishable food.</textarea><p><svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-book-open"></use></svg>Source: Family Handbook · Meals and nutrition</p></div>
+    <div class="drawer-actions"><button type="submit" value="cancel" class="small-button">Cancel</button><button type="button" class="gummy-button" data-save-draft>Save draft <svg class="icon" aria-hidden="true"><use href="hybrid-icons.svg#icon-check"></use></svg></button></div>
+  </form></dialog>
+  <footer class="hybrid-footer"><span>Little Lantern Learning Center · Fictional center preview</span><span>Hybrid direction · <a href="index.html">Compare directions</a></span></footer>
+</body>
+</html>

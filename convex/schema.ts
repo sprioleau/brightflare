@@ -43,6 +43,7 @@ export default defineSchema({
     category: v.string(),
     isFeatured: v.boolean(),
     tags: v.optional(v.array(v.string())),
+    seedKey: v.optional(v.string()),
     featuredOrder: v.optional(v.number()),
     startsAt: v.optional(v.number()),
     endsAt: v.optional(v.number()),

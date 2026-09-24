@@ -83,7 +83,7 @@ describe("AdminConsole", () => {
 
   it("opens focused workspace views from the admin navigation", async () => {
     render(<AdminConsole />)
-    await screen.findByRole("heading", { name: "Good morning, team" })
+    await screen.findByRole("heading", { name: "Staff workspace" })
     const navigation = within(screen.getByRole("navigation", { name: "Admin navigation" }))
 
     fireEvent.click(navigation.getByRole("button", { name: "Handbook" }))
@@ -188,6 +188,54 @@ describe("AdminConsole", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add an answer" }))
     expect(screen.getByLabelText("FAQ title")).toHaveValue("")
     expect(screen.getByRole("combobox", { name: "Source type" })).toHaveValue("handbook")
+  })
+
+  it("shows a streamed assistant failure beside the FAQ title action", async () => {
+    const defaultFetch = vi.mocked(fetch).getMockImplementation()
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/admin/assist") {
+        return new Response('{"type":"error","message":"The assistant could not prepare a suggestion. Please try again."}\n', {
+          headers: { "Content-Type": "application/x-ndjson" },
+        })
+      }
+      return defaultFetch!(input, init)
+    })
+
+    render(<AdminConsole />)
+    fireEvent.click(await screen.findByRole("button", { name: "Add an answer" }))
+    fireEvent.change(screen.getByLabelText("FAQ title"), { target: { value: "When should families arrive?" } })
+    fireEvent.click(screen.getByRole("button", { name: "Suggest a shorter FAQ title" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The assistant could not prepare a suggestion. Please try again.")
+  })
+
+  it("aborts a pending title suggestion when the editor closes and ignores its late response", async () => {
+    const defaultFetch = vi.mocked(fetch).getMockImplementation()
+    let resolveAssist: ((response: Response) => void) | undefined
+    let assistSignal: AbortSignal | null | undefined
+    const assistResponse = new Promise<Response>((resolve) => {
+      resolveAssist = resolve
+    })
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/admin/assist") {
+        assistSignal = init?.signal
+        return assistResponse
+      }
+      return defaultFetch!(input, init)
+    })
+
+    render(<AdminConsole />)
+    fireEvent.click(await screen.findByRole("button", { name: "Add an answer" }))
+    fireEvent.change(screen.getByLabelText("FAQ title"), { target: { value: "A very long title to shorten" } })
+    fireEvent.click(screen.getByRole("button", { name: "Suggest a shorter FAQ title" }))
+    await waitFor(() => expect(assistSignal).toBeDefined())
+    fireEvent.click(screen.getByRole("button", { name: "Close editor" }))
+    expect(assistSignal?.aborted).toBe(true)
+
+    fireEvent.click(screen.getByRole("button", { name: "Add an answer" }))
+    resolveAssist?.(Response.json({ suggestions: ["Stale suggestion"] }))
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Stale suggestion" })).not.toBeInTheDocument())
+    expect(screen.getByLabelText("FAQ title")).toHaveValue("")
   })
 
   it("searches the front desk card picker and saves the chosen card order", async () => {

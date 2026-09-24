@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f4efe4" />
+  <title>Neighborhood Bulletin · Brightflare visual exploration</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="demo.js" defer></script>
+</head>
+<body class="bulletin">
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <header class="demo-top">
+    <a class="brand" href="index.html" aria-label="Brightflare visual explorations"><img src="assets/brightflare-logo.svg" alt="" />brightflare</a>
+    <span class="center-name">Little Lantern Learning Center <small>Family desk</small></span>
+    <nav class="demo-nav" aria-label="Design variations"><a href="atelier.html">← 01 Atelier</a><a href="current.html">03 Current →</a><span class="demo-badge">Static design demo</span></nav>
+  </header>
+  <main id="main" class="bulletin-main">
+    <span class="bulletin-plus one" aria-hidden="true">+</span><span class="bulletin-plus two" aria-hidden="true">+</span>
+    <span class="bulletin-kicker">✳ &nbsp; A friendly place to start</span>
+    <section class="bulletin-hero" aria-labelledby="bulletin-title">
+      <h1 id="bulletin-title">Good morning,<br /><mark>Little Lantern.</mark></h1>
+      <p><strong>Questions are welcome here.</strong>We’ll help you find the center’s answer, or make it clear when the team needs to weigh in.</p>
+    </section>
+    <div class="bulletin-body">
+      <section class="bulletin-question" aria-labelledby="bulletin-ask-title">
+        <span class="section-tag">01 / Ask us</span>
+        <h2 id="bulletin-ask-title">What can we help with?</h2>
+        <p>From the everyday to the unexpected, start with a question.</p>
+        <form class="ask-form">
+          <label for="bulletin-question" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Your question</label>
+          <textarea id="bulletin-question" name="question" placeholder="Type your question here…" required></textarea>
+          <div class="bulletin-form-bottom"><span>Illustrative answer preview</span><button class="bulletin-btn" type="submit">Find my answer ↗</button></div>
+        </form>
+        <div class="bulletin-try"><button type="button" data-try-question="What are the center hours?">↗ Center hours</button><button type="button" data-try-question="Where can I find health guidance?">↗ Health guidance</button></div>
+        <section class="answer" aria-live="polite" aria-label="Answer" hidden>
+          <div class="answer-head"><div><span class="answer-status" data-answer-status></span><h3 data-answer-question></h3></div><button type="button" data-close-answer aria-label="Close answer">×</button></div>
+          <p data-answer-text></p><div class="answer-source">Source: <span data-answer-source></span></div>
+        </section>
+      </section>
+      <section class="bulletin-faq" aria-labelledby="bulletin-faq-title">
+        <div class="bulletin-faq-header"><div><span class="section-tag">02 / Quick answers</span><h2 id="bulletin-faq-title">On the noticeboard</h2></div><p>Clear answers from the center, ready when you are.</p></div>
+        <details><summary><span>01</span><span>When is the center open?</span></summary><p>Monday–Friday, 7:30 AM–5:30 PM.<small>Center details · illustrative content</small></p></details>
+        <details><summary><span>02</span><span>What do I pack each day?</span></summary><p>Please bring a labeled change of clothes and daily essentials. Check with your classroom team for the current age-specific list.<small>Getting ready for school · illustrative content</small></p></details>
+        <details><summary><span>03</span><span>How do I check illness guidance?</span></summary><p>Speak with center staff for the latest guidance if your child is ill. A return date may depend on your child’s situation.<small>Health and wellness · staff confirmation</small></p></details>
+        <details><summary><span>04</span><span>Who helps with a personal question?</span></summary><p>Talk directly with the center team about your child’s personal details. This public desk is for general information.<small>Privacy guidance · illustrative content</small></p></details>
+        <div class="bulletin-service"><span>✳ &nbsp; Mon–Fri · 7:30 AM–5:30 PM</span><span>For personal questions, speak with the Little Lantern team.</span></div>
+      </section>
+    </div>
+  </main>
+  <footer class="demo-footer"><span>Little Lantern Learning Center · Family desk concept</span><span>02 / Neighborhood Bulletin &nbsp; · &nbsp; <a href="current.html">Next direction →</a></span></footer>
+</body>
+</html>

@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 export const generatedAnswerSchema = z.object({
-  answer: z.string().trim().min(1).max(700),
   sourceIds: z.array(z.string()).max(3),
   needsStaff: z.boolean(),
+  answer: z.string().trim().min(1).max(700),
   canonicalTitle: z.string().trim().min(4).max(100),
 });
 

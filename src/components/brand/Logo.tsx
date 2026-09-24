@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-export type LogoVariant = "mark" | "wordmark" | "stacked";
+export type LogoVariant = "mark" | "wordmark" | "stacked" | "full";
 
 type LogoProps = {
   size?: number;
@@ -11,6 +11,8 @@ type LogoProps = {
 
 export function Logo({ size = 32, variant = "wordmark", className }: LogoProps) {
   const isMarkOnly = variant === "mark";
+  const isFullLogo = variant === "full";
+  const imageWidth = isFullLogo ? Math.round(size * (698 / 128)) : size;
   return (
     <span
       className={cn(
@@ -21,13 +23,13 @@ export function Logo({ size = 32, variant = "wordmark", className }: LogoProps) 
       data-variant={variant}
     >
       <Image
-        src="/brightflare-logo.svg"
-        alt={isMarkOnly ? "brightflare" : ""}
-        width={size}
+        src={isFullLogo ? "/assets/brightflare-logo-full.svg" : "/assets/brightflare-logo.svg"}
+        alt={isMarkOnly || isFullLogo ? "brightflare" : ""}
+        width={imageWidth}
         height={size}
         priority
       />
-      {!isMarkOnly && (
+      {!isMarkOnly && !isFullLogo && (
         <span
           className="font-bold leading-none tracking-tight"
           style={{ fontSize: Math.round(size * 0.55) }}
