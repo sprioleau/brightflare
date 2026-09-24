@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { getGeminiModel, getGeminiOverloadFallbackModel, isGeminiOverloaded } from "./ai-model";
+import { getGeminiModel, getGeminiOverloadFallbackModel, getOpenRouterFallbackModel, isGeminiOverloaded } from "./ai-model";
 
 describe("Gemini model configuration", () => {
   const originalEnvironment = {
@@ -8,6 +8,8 @@ describe("Gemini model configuration", () => {
     AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY,
     VERCEL_OIDC_TOKEN: process.env.VERCEL_OIDC_TOKEN,
     VERCEL: process.env.VERCEL,
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+    OPENROUTER_MODEL_ID: process.env.OPENROUTER_MODEL_ID,
   };
 
   afterEach(() => {
@@ -40,6 +42,23 @@ describe("Gemini model configuration", () => {
     expect(getGeminiOverloadFallbackModel()?.modelId).toBe("gemini-3.5-flash");
     expect(isGeminiOverloaded(new Error("This model is currently experiencing high demand"))).toBe(true);
     expect(isGeminiOverloaded(new Error("You exceeded your current quota. Quota exceeded for metric: generate_content_free_tier_requests"))).toBe(true);
+  });
+
+  it("leaves OpenRouter disabled when its key is blank", () => {
+    process.env.OPENROUTER_API_KEY = "  ";
+    expect(getOpenRouterFallbackModel()).toBeNull();
+  });
+
+  it("selects the verified GPT OSS free model when OpenRouter is configured", () => {
+    process.env.OPENROUTER_API_KEY = "test-openrouter-key";
+    delete process.env.OPENROUTER_MODEL_ID;
+    expect(getOpenRouterFallbackModel()?.modelId).toBe("openai/gpt-oss-20b:free");
+  });
+
+  it("allows a configured OpenRouter model override", () => {
+    process.env.OPENROUTER_API_KEY = "test-openrouter-key";
+    process.env.OPENROUTER_MODEL_ID = "openai/gpt-oss-120b:free";
+    expect(getOpenRouterFallbackModel()?.modelId).toBe("openai/gpt-oss-120b:free");
   });
 
   it("uses the 3.5 Flash-Lite fallback through AI Gateway for configured 3.6 Flash", () => {

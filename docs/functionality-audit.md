@@ -21,7 +21,7 @@
 - Browser checks passed for all eight staff destinations: Dashboard, Recommendations, Questions, Question topics, Handbook, Front desk layout, Announcement, and Center settings.
 - Saving unchanged announcement content produced the live-success toast. Saving unchanged settings produced success feedback and retained the saved hours after reload. The phone settings layout and horizontal staff navigation were inspected.
 - Handbook search, article selection, direct section links, review/source metadata, mobile browse disclosure, and actual center hours were checked. Handbook hours come from the existing public front-desk query; no backend deployment is required.
-- Admin drafts remain reviewable and never publish automatically. Stream/error/stale-result behavior is covered by regression tests. A successful live Admin AI suggestion was not verified in this pass.
+- Admin drafts remain reviewable and never publish automatically. Stream/error/stale-result behavior is covered by regression tests. Later production checks below verified all three Admin AI suggestion modes.
 
 ## Annotated UI polish
 
@@ -31,7 +31,7 @@
 
 ## Release verification
 
-- Current full Vitest checkpoint: **20 files, 88 tests passed**. TypeScript, `git diff --check`, and the production build passed.
+- Current full Vitest checkpoint: **20 files, 93 tests passed**. TypeScript, `git diff --check`, and the production build passed.
 - Browser layout passed at **1024×768**, **768×1024**, and **390×844**. All eight closed FAQs and the composer fit both iPad orientations. Expanded answers remain scrollable in the FAQ region, retain their card surface, and leave chat unchanged. Phone announcements display their full message.
 - Refreshed screenshots are in `public/screenshots/`, with absolute production URLs in the README.
 - Live checks found both application and provider limits: a default-thinking Flash-Lite probe used a redundant source-tool roundtrip at 6.7 seconds; a direct-source attempt still exceeded eight seconds. The final minimal-thinking Gemini 3.5 Flash probe returned a real 503 `UNAVAILABLE` in about 2.5 seconds, before any text. The Flock reference independently documents minimal thinking as its fix for Flash-Lite latency. The revised fallback/deadline behavior is regression-tested. The later production check below also verified a sourced real answer within the eight-second cap. The production build also passed a browser check confirming that a private family question and Clear chat preserve an authenticated staff session. Deployment verification follows publication.
@@ -48,3 +48,10 @@
 Earlier real requests returned sourced answers in 22.5–39.2 seconds, before the eight-second cap. A later Google 503 indicated high demand; the user's AI Studio screenshot separately showed a Gemini 3.6 Flash rate-limit hit. Local development currently selects Gemini 3.5 Flash-Lite. These are distinct observations.
 
 All demonstration center, policy, family, and child records are fictional. The additive fixture update affected only the personal development deployment `tame-cod-314` (eight additions on its first run, zero on its second). No production Convex deployment is part of this release.
+
+## Production agent coverage and optional fallback
+
+- Serial production checks on September 24 at 20:36–20:38 UTC returned a sourced public hours answer (1.44 seconds), a verified fictional Mia Carter answer from the September 18 teacher message (2.27 seconds), and HTTP 401 for the same private question without family verification. Private output was withheld until its final validated answer. Correlated public/private model times were 956 ms and 1,934 ms, both direct Google Gemini 3.5 Flash-Lite.
+- Staff title, knowledge, and seasonal assistance returned useful structured suggestions in 2.04, 1.27, and 2.33 seconds. Recommendations returned eight saved drafts without a generation error; that response alone does not prove fresh inference because generation has a ten-minute cooldown. The subsequent provider patch adds successful staff attempt logs for exact model attribution.
+- A browser question about an unspecified late-pickup fee correctly requested staff follow-up without inventing a fee. The corresponding draft policy remains unresolved for the demo.
+- Optional OpenRouter fallback is disabled unless OPENROUTER_API_KEY is configured. Its default model is openai/gpt-oss-20b:free. The existing grounded-answer validation, private-source scope, and eight-second family deadline remain in effect; no live OpenRouter call is claimed without a configured key.

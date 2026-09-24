@@ -151,7 +151,31 @@ export function logAIErrorDiagnostic(area: "ask" | "admin_assist" | "admin_recom
   }));
 }
 
+export function startAIModelAttempt(area: "admin_assist" | "admin_recommendations", requestId: string, attempt: "primary" | "fallback", model: { modelId: string; provider: string }) {
+  const startedAt = Date.now();
+  let hasFinished = false;
+  console.info("brightflare.ai.attempt", JSON.stringify({ event: "attempt_start", area, requestId, attempt, modelId: model.modelId, provider: model.provider }));
+  return {
+    succeed() {
+      if (hasFinished) return;
+      hasFinished = true;
+      console.info("brightflare.ai.attempt", JSON.stringify({ event: "attempt_end", area, requestId, attempt, modelId: model.modelId, provider: model.provider, outcome: "success", elapsedMs: Date.now() - startedAt }));
+    },
+    fail(error: unknown) {
+      if (hasFinished) return;
+      hasFinished = true;
+      const diagnosis = classifyAIError(error);
+      console.info("brightflare.ai.attempt", JSON.stringify({ event: "attempt_end", area, requestId, attempt, modelId: model.modelId, provider: model.provider, outcome: diagnosis.category, category: diagnosis.category, errorClass: diagnosis.errorClass, statusCode: diagnosis.statusCode, ...(diagnosis.code ? { code: diagnosis.code } : {}), ...(diagnosis.requestId ? { providerRequestId: diagnosis.requestId } : {}), ...(diagnosis.retryAfterSeconds !== undefined ? { retryAfterSeconds: diagnosis.retryAfterSeconds } : {}), ...(diagnosis.providerMessage ? { providerMessage: diagnosis.providerMessage } : {}), elapsedMs: Date.now() - startedAt }));
+    },
+  };
+}
+
 export function isAIOverload(error: unknown): boolean {
   const category = classifyAIError(error).category;
   return category === "quota" || category === "capacity";
+}
+
+export function isAIOverloadOrTimeout(error: unknown): boolean {
+  const category = classifyAIError(error).category;
+  return category === "quota" || category === "capacity" || category === "timeout";
 }

@@ -3,7 +3,7 @@ import { isStepCount, Output, ToolLoopAgent, tool } from "ai";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { api } from "../../../../convex/_generated/api";
-import { getGeminiModel, getGeminiOverloadFallbackModel, isGeminiOverloaded } from "@/lib/ai-model";
+import { getGeminiModel, getGeminiOverloadFallbackModel, getOpenRouterFallbackModel, isGeminiOverloaded } from "@/lib/ai-model";
 import { getConvexServerClient, getConvexServerSecret } from "@/lib/convex-server";
 import { generatedAnswerSchema, validateGroundedAnswer } from "@/lib/grounding";
 import { createAnswerStreamResponse, createRequestDeadline } from "@/lib/answer-stream";
@@ -23,6 +23,7 @@ const questionSchema = z.object({
 const askDeadlineMs = 8_000;
 const primaryModelBudgetMs = 4_000;
 const askTimeoutMessage = "We couldn’t get an answer in time. Try again or ask the front desk team.";
+type AskModel = NonNullable<ReturnType<typeof getGeminiModel>> | NonNullable<ReturnType<typeof getOpenRouterFallbackModel>>;
 
 function isModelAttemptTimeout(error: unknown) {
   const pending: unknown[] = [error];
@@ -33,7 +34,7 @@ function isModelAttemptTimeout(error: unknown) {
     if (!current || typeof current !== "object" || visited.has(current)) continue;
     visited.add(current);
     inspected += 1;
-    if (current instanceof Error && current.name === "TimeoutError") return true;
+    if (current instanceof Error && (current.name === "TimeoutError" || current.name === "AI_TimeoutError")) return true;
     const details = current as { cause?: unknown; lastError?: unknown; errors?: unknown };
     pending.push(details.cause, details.lastError);
     if (Array.isArray(details.errors)) pending.push(...details.errors.slice(0, 10));
@@ -48,7 +49,7 @@ function modelInstructions(system: string) {
 type FinalAnswer = ReturnType<typeof validateGroundedAnswer> & { suggestedQuestions: string[] };
 
 async function generateGroundedOutput(
-  model: NonNullable<ReturnType<typeof getGeminiModel>>,
+  model: AskModel,
   system: string,
   prompt: string,
   sources: SearchableSource[],
@@ -59,10 +60,14 @@ async function generateGroundedOutput(
 ) {
   const startedAt = Date.now();
   const fallbackModel = getGeminiOverloadFallbackModel();
-  async function runWithModel(selectedModel: typeof model) {
+  const openRouterFallbackModel = getOpenRouterFallbackModel();
+  const fallbackModels = [fallbackModel, openRouterFallbackModel].filter((fallback): fallback is AskModel => fallback !== null);
+  async function runWithModel(selectedModel: AskModel) {
     const remainingMs = Math.max(1, timeoutMs - (Date.now() - startedAt));
-    const shouldUsePrimaryBudget = selectedModel === model && fallbackModel !== null;
-    const attemptTimeoutMs = shouldUsePrimaryBudget ? Math.min(primaryModelBudgetMs, remainingMs) : remainingMs;
+    const attemptBudgetMs = selectedModel === model
+      ? (fallbackModels.length > 0 ? (openRouterFallbackModel ? 2_000 : primaryModelBudgetMs) : remainingMs)
+      : (selectedModel === openRouterFallbackModel ? remainingMs : openRouterFallbackModel ? 2_000 : remainingMs);
+    const attemptTimeoutMs = Math.min(attemptBudgetMs, remainingMs);
     const diagnostic = startAskAttempt({ requestId, requestElapsedMs: Date.now() - requestStartedAt, attempt: selectedModel === model ? "primary" : "fallback", modelId: selectedModel.modelId, provider: selectedModel.provider, budgetMs: attemptTimeoutMs, signal });
     const agent = new ToolLoopAgent({
       model: selectedModel,
@@ -70,7 +75,7 @@ async function generateGroundedOutput(
       instructions: modelInstructions(system),
       stopWhen: isStepCount(5),
       maxRetries: 0,
-      providerOptions: { google: { thinkingConfig: { thinkingLevel: "minimal" } } },
+      ...((selectedModel.provider ?? "").includes("google") || selectedModel.modelId.startsWith("google/") || selectedModel.modelId.startsWith("gemini-") ? { providerOptions: { google: { thinkingConfig: { thinkingLevel: "minimal" } } } } : {}),
       tools: {
         searchSources: tool({
           description: "Find current, authorized handbook, center-update, or verified child records relevant to a question.",
@@ -99,14 +104,23 @@ async function generateGroundedOutput(
       throw error;
     }
   }
+  let generationError: unknown;
   try {
     return await runWithModel(model);
   } catch (error) {
-    if (signal.aborted) throw error;
-    if (!fallbackModel || (!isGeminiOverloaded(error) && !isModelAttemptTimeout(error))) throw error;
-    if (signal.aborted) throw error;
-    return await runWithModel(fallbackModel);
+    generationError = error;
   }
+  if (signal.aborted || (!isGeminiOverloaded(generationError) && !isModelAttemptTimeout(generationError))) throw generationError;
+  for (const fallback of fallbackModels) {
+    if (signal.aborted) throw generationError;
+    try {
+      return await runWithModel(fallback);
+    } catch (fallbackError) {
+      generationError = fallbackError;
+      if (!isGeminiOverloaded(fallbackError) && !isModelAttemptTimeout(fallbackError)) throw fallbackError;
+    }
+  }
+  throw generationError;
 }
 
 function createGroundedAnswerStream({
@@ -137,13 +151,14 @@ function createGroundedAnswerStream({
   requestStartedAt: number;
 }) {
   const startedAt = Date.now();
-  let attemptCount = 0;
   const fallbackModel = getGeminiOverloadFallbackModel();
-  function createAttempt(selectedModel: typeof model, signal: AbortSignal) {
+  const openRouterFallbackModel = getOpenRouterFallbackModel();
+  function createAttempt(selectedModel: AskModel, signal: AbortSignal) {
     const remainingMs = Math.max(1, timeoutMs - (Date.now() - startedAt));
-    const shouldUsePrimaryBudget = attemptCount === 0 && fallbackModel !== null;
-    attemptCount += 1;
-    const attemptTimeoutMs = shouldUsePrimaryBudget ? Math.min(primaryModelBudgetMs, remainingMs) : remainingMs;
+    const attemptBudgetMs = selectedModel === model
+      ? (fallbackModel || openRouterFallbackModel ? (openRouterFallbackModel ? 2_000 : primaryModelBudgetMs) : remainingMs)
+      : (selectedModel === openRouterFallbackModel ? remainingMs : openRouterFallbackModel ? 2_000 : remainingMs);
+    const attemptTimeoutMs = Math.min(attemptBudgetMs, remainingMs);
     const diagnostic = startAskAttempt({ requestId, requestElapsedMs: Date.now() - requestStartedAt, attempt: selectedModel === model ? "primary" : "fallback", modelId: selectedModel.modelId, provider: selectedModel.provider, budgetMs: attemptTimeoutMs, signal });
     const agent = new ToolLoopAgent({
       model: selectedModel,
@@ -151,7 +166,7 @@ function createGroundedAnswerStream({
       instructions: modelInstructions(system),
       stopWhen: isStepCount(5),
       maxRetries: 0,
-      providerOptions: { google: { thinkingConfig: { thinkingLevel: "minimal" } } },
+      ...((selectedModel.provider ?? "").includes("google") || selectedModel.modelId.startsWith("google/") || selectedModel.modelId.startsWith("gemini-") ? { providerOptions: { google: { thinkingConfig: { thinkingLevel: "minimal" } } } } : {}),
       tools: {
         searchSources: tool({
           description: "Find current, authorized handbook, center-update, or verified child records relevant to a question.",
@@ -199,6 +214,7 @@ function createGroundedAnswerStream({
   return createAnswerStreamResponse<z.infer<typeof generatedAnswerSchema>, string, FinalAnswer>({
     createAttempt: async (signal) => await createAttempt(model, signal),
     createFallbackAttempt: fallbackModel ? async (signal) => await createAttempt(fallbackModel, signal) : undefined,
+    additionalFallbackAttempts: openRouterFallbackModel ? [async (signal) => await createAttempt(openRouterFallbackModel, signal)] : undefined,
     shouldFallback: (error) => isGeminiOverloaded(error) || isModelAttemptTimeout(error),
     signal: abortSignal,
     timeoutMs,

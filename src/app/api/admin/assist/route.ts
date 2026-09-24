@@ -3,11 +3,11 @@ import { isStepCount, Output, ToolLoopAgent, tool } from "ai";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { api } from "../../../../../convex/_generated/api";
-import { getGeminiModel, getGeminiOverloadFallbackModel, isGeminiOverloaded } from "@/lib/ai-model";
+import { getGeminiModel, getGeminiOverloadFallbackModel, getOpenRouterFallbackModel } from "@/lib/ai-model";
 import { getConvexServerClient, getConvexServerSecret } from "@/lib/convex-server";
 import { getSessionRole, isSameOrigin } from "@/lib/session";
 import { createAnswerStreamResponse } from "@/lib/answer-stream";
-import { getPublicAIError, logAIErrorDiagnostic } from "@/lib/ai-errors";
+import { getPublicAIError, isAIOverloadOrTimeout, logAIErrorDiagnostic, startAIModelAttempt } from "@/lib/ai-errors";
 
 const inputSchema = z.object({
   mode: z.enum(["title", "seasonal", "knowledge"]),
@@ -16,6 +16,7 @@ const inputSchema = z.object({
 });
 
 const outputSchema = z.object({ suggestions: z.array(z.string().trim().min(4).max(500)).min(1).max(4) });
+type AdminModel = NonNullable<ReturnType<typeof getGeminiModel>> | NonNullable<ReturnType<typeof getOpenRouterFallbackModel>>;
 
 export async function POST(request: NextRequest) {
   const requestId = randomUUID();
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
   const client = getConvexServerClient();
   const secret = getConvexServerSecret();
   const model = getGeminiModel();
+  const openRouterFallbackModel = getOpenRouterFallbackModel();
   if (!client || !secret || !model) {
     return Response.json({ error: "The admin assistant is not connected yet." }, { status: 503 });
   }
@@ -126,23 +128,38 @@ export async function POST(request: NextRequest) {
     : parsed.data.mode === "title"
       ? `Use inspectHandbook. Suggest two or three plain-language FAQ titles of at most 65 characters for this staff draft: ${JSON.stringify(parsed.data.text)}. Preserve its meaning.`
       : `Use inspectHandbookEntry for the investigated topic, inspectHandbook for broader context, inspectRecentPublicQuestions for recent family wording, and inspectQuestionTrends. Topic ID: ${parsed.data.topicId || "none"}. Staff is investigating: ${JSON.stringify(parsed.data.text)}. Suggest a short answer draft only when directly supported by a current approved source. Otherwise, suggest the exact policy detail staff needs to confirm before publishing.`;
+  const generationStartedAt = Date.now();
+  const totalGenerationBudgetMs = 60_000;
+  const priorAttemptBudgetMs = openRouterFallbackModel ? 18_000 : 55_000;
   if (request.headers.get("accept")?.includes("application/x-ndjson")) {
-    async function createAttempt(selectedModel: NonNullable<typeof model>, abortSignal: AbortSignal) {
-      const streamOptions = { prompt, abortSignal, timeout: { totalMs: 55_000, stepMs: 45_000 }, onError: () => "The AI provider request failed." };
-      const result = await new ToolLoopAgent({ model: selectedModel, ...agentOptions }).stream(streamOptions);
+    async function createAttempt(selectedModel: AdminModel, abortSignal: AbortSignal) {
+      const remainingMs = Math.max(1, totalGenerationBudgetMs - (Date.now() - generationStartedAt));
+      const attemptTimeoutMs = selectedModel === openRouterFallbackModel ? remainingMs : Math.min(priorAttemptBudgetMs, remainingMs);
+      const diagnostic = startAIModelAttempt("admin_assist", requestId, selectedModel === model ? "primary" : "fallback", selectedModel);
+      const streamOptions = { prompt, abortSignal, timeout: { totalMs: attemptTimeoutMs, stepMs: attemptTimeoutMs }, onError: ({ error }: { error: unknown }) => { diagnostic.fail(error); return "The AI provider request failed."; } };
+      const agent = new ToolLoopAgent({ model: selectedModel, ...agentOptions });
+      let result: Awaited<ReturnType<typeof agent.stream>>;
+      try {
+        result = await agent.stream(streamOptions);
+      } catch (error) {
+        diagnostic.fail(error);
+        throw error;
+      }
       let originalError: unknown;
       const fullStreamObservation = (async () => {
         try {
           for await (const part of result.fullStream) if (part.type === "error") originalError = part.error;
         } catch (error) { originalError ??= error; }
       })();
-      const output = Promise.resolve(result.output).then((value) => value, async (error: unknown) => {
+      const output = Promise.resolve(result.output).then((value) => { diagnostic.succeed(); return value; }, async (error: unknown) => {
         await fullStreamObservation;
-        throw originalError ?? error;
+        const failure = originalError ?? error;
+        diagnostic.fail(failure);
+        throw failure;
       });
       async function* observePartials() {
         try { for await (const partial of result.partialOutputStream) yield partial; }
-        catch (error) { await fullStreamObservation; throw originalError ?? error; }
+        catch (error) { await fullStreamObservation; const failure = originalError ?? error; diagnostic.fail(failure); throw failure; }
       }
       return { output, partialOutputStream: observePartials(), getOriginalError: () => originalError };
     }
@@ -150,7 +167,8 @@ export async function POST(request: NextRequest) {
     return createAnswerStreamResponse<z.infer<typeof outputSchema>, string[], z.infer<typeof outputSchema>>({
       createAttempt: async (abortSignal) => await createAttempt(model, abortSignal),
       createFallbackAttempt: fallbackModel ? async (abortSignal) => await createAttempt(fallbackModel, abortSignal) : undefined,
-      shouldFallback: isGeminiOverloaded,
+      additionalFallbackAttempts: openRouterFallbackModel ? [async (abortSignal) => await createAttempt(openRouterFallbackModel, abortSignal)] : undefined,
+      shouldFallback: isAIOverloadOrTimeout,
       signal: request.signal,
       timeoutMs: 60_000,
       getDraftValue: (partial) => {
@@ -167,25 +185,56 @@ export async function POST(request: NextRequest) {
     });
   }
   try {
-    const generationOptions = { prompt, onError: () => "The AI provider request failed." };
-    const { output } = await new ToolLoopAgent({ model, ...agentOptions }).generate(generationOptions);
+    const diagnostic = startAIModelAttempt("admin_assist", requestId, "primary", model);
+    const generationOptions = { prompt, abortSignal: request.signal, timeout: { totalMs: Math.min(priorAttemptBudgetMs, totalGenerationBudgetMs), stepMs: Math.min(priorAttemptBudgetMs, totalGenerationBudgetMs) }, onError: ({ error }: { error: unknown }) => { diagnostic.fail(error); return "The AI provider request failed."; } };
+    let output: z.infer<typeof outputSchema>;
+    try {
+      output = (await new ToolLoopAgent({ model, ...agentOptions }).generate(generationOptions)).output;
+      diagnostic.succeed();
+    } catch (error) {
+      diagnostic.fail(error);
+      throw error;
+    }
     return Response.json(output);
   } catch (error) {
+    let fallbackError: unknown = error;
     const fallbackModel = getGeminiOverloadFallbackModel();
-    if (fallbackModel && isGeminiOverloaded(error)) {
+    if (!request.signal.aborted && fallbackModel && isAIOverloadOrTimeout(error)) {
       logAIErrorDiagnostic("admin_assist", requestId, error);
       try {
-        const fallbackOptions = { prompt, onError: () => "The AI provider request failed." };
-        const { output } = await new ToolLoopAgent({ model: fallbackModel, ...agentOptions }).generate(fallbackOptions);
-        return Response.json(output);
+        const diagnostic = startAIModelAttempt("admin_assist", requestId, "fallback", fallbackModel);
+        const fallbackOptions = { prompt, abortSignal: request.signal, timeout: { totalMs: Math.min(priorAttemptBudgetMs, Math.max(1, totalGenerationBudgetMs - (Date.now() - generationStartedAt))), stepMs: Math.min(priorAttemptBudgetMs, Math.max(1, totalGenerationBudgetMs - (Date.now() - generationStartedAt))) }, onError: ({ error: fallbackError }: { error: unknown }) => { diagnostic.fail(fallbackError); return "The AI provider request failed."; } };
+        try {
+          const { output } = await new ToolLoopAgent({ model: fallbackModel, ...agentOptions }).generate(fallbackOptions);
+          diagnostic.succeed();
+          return Response.json(output);
+        } catch (fallbackError) {
+          diagnostic.fail(fallbackError);
+          throw fallbackError;
+        }
       } catch (error) {
-        logAIErrorDiagnostic("admin_assist", requestId, error);
-        const aiError = getPublicAIError(error);
-        return Response.json({ error: aiError.message, aiError }, { status: 503 });
+        fallbackError = error;
       }
     }
-    logAIErrorDiagnostic("admin_assist", requestId, error);
-    const aiError = getPublicAIError(error);
+    if (!request.signal.aborted && openRouterFallbackModel && isAIOverloadOrTimeout(fallbackError)) {
+      try {
+        const diagnostic = startAIModelAttempt("admin_assist", requestId, "fallback", openRouterFallbackModel);
+        const timeoutMs = Math.max(1, totalGenerationBudgetMs - (Date.now() - generationStartedAt));
+        const fallbackOptions = { prompt, abortSignal: request.signal, timeout: { totalMs: timeoutMs, stepMs: timeoutMs }, onError: ({ error: fallbackError }: { error: unknown }) => { diagnostic.fail(fallbackError); return "The AI provider request failed."; } };
+        try {
+          const { output } = await new ToolLoopAgent({ model: openRouterFallbackModel, ...agentOptions }).generate(fallbackOptions);
+          diagnostic.succeed();
+          return Response.json(output);
+        } catch (fallbackError) {
+          diagnostic.fail(fallbackError);
+          throw fallbackError;
+        }
+      } catch (error) {
+        fallbackError = error;
+      }
+    }
+    logAIErrorDiagnostic("admin_assist", requestId, fallbackError);
+    const aiError = getPublicAIError(fallbackError);
     return Response.json({ error: aiError.message, aiError }, { status: 503 });
   }
 }

@@ -1,4 +1,5 @@
 import { google } from "@ai-sdk/google";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { gateway } from "ai";
 import { isAIOverload } from "@/lib/ai-errors";
 
@@ -30,6 +31,13 @@ export function getGeminiOverloadFallbackModel() {
       ? "gemini-3.5-flash"
       : null;
   return fallbackModelId ? getGeminiProviderModel(fallbackModelId) : null;
+}
+
+export function getOpenRouterFallbackModel() {
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+  if (!apiKey) return null;
+  const openrouter = createOpenRouter({ apiKey });
+  return openrouter(process.env.OPENROUTER_MODEL_ID?.trim() || "openai/gpt-oss-20b:free");
 }
 
 export function isGeminiOverloaded(error: unknown): boolean {

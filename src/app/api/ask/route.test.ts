@@ -5,6 +5,7 @@ import { POST } from "./route";
 const mocks = vi.hoisted(() => ({
   generate: vi.fn(),
   getFallbackModel: vi.fn(),
+  getOpenRouterFallbackModel: vi.fn(),
   getSession: vi.fn(),
   mutation: vi.fn(),
   query: vi.fn(),
@@ -33,8 +34,9 @@ vi.mock("../../../../convex/_generated/api", () => ({
 }));
 
 vi.mock("@/lib/ai-model", () => ({
-  getGeminiModel: () => ({ modelId: "test-model" }),
+  getGeminiModel: () => ({ modelId: "gemini-test-model", provider: "google.generative-ai" }),
   getGeminiOverloadFallbackModel: mocks.getFallbackModel,
+  getOpenRouterFallbackModel: mocks.getOpenRouterFallbackModel,
   isGeminiOverloaded: () => false,
 }));
 
@@ -78,6 +80,7 @@ describe("POST /api/ask", () => {
     vi.clearAllMocks();
     mocks.getSession.mockReturnValue(null);
     mocks.getFallbackModel.mockReturnValue(null);
+    mocks.getOpenRouterFallbackModel.mockReturnValue(null);
     mocks.mutation.mockResolvedValue(undefined);
     mocks.query.mockImplementation(async (functionName: string) => {
       if (functionName === "getCenterVoiceSettings") {
@@ -229,6 +232,32 @@ describe("POST /api/ask", () => {
     expect(mocks.generate).toHaveBeenCalledTimes(2);
     expect(mocks.generate.mock.calls[1][0].timeout.totalMs).toBeGreaterThan(3_900);
     expect(mocks.generate.mock.calls[1][0].timeout.totalMs).toBeLessThanOrEqual(4_000);
+  });
+
+  it("reserves two-second Gemini attempts and gives OpenRouter the remaining ask budget", async () => {
+    vi.useFakeTimers();
+    mocks.getFallbackModel.mockReturnValue({ modelId: "gemini-fallback", provider: "google.generative-ai" });
+    mocks.getOpenRouterFallbackModel.mockReturnValue({ modelId: "openai/gpt-oss-20b:free", provider: "openrouter.chat" });
+    mocks.generate.mockImplementationOnce(() => new Promise((_resolve, reject) => {
+      setTimeout(() => reject(Object.assign(new Error("first attempt timed out"), { name: "TimeoutError" })), 2_000);
+    }));
+    mocks.generate.mockImplementationOnce(() => new Promise((_resolve, reject) => {
+      setTimeout(() => reject(Object.assign(new Error("Gemini alternate timed out"), { name: "TimeoutError" })), 2_000);
+    }));
+    mocks.generate.mockResolvedValueOnce({ output: generatedOutput });
+
+    const responsePromise = POST(createRequest({ question: "What are your hours?", sessionId }) as NextRequest);
+    await vi.waitFor(() => expect(mocks.generate).toHaveBeenCalledTimes(1));
+    expect(mocks.generate.mock.calls[0][0].timeout.totalMs).toBe(2_000);
+    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.waitFor(() => expect(mocks.generate).toHaveBeenCalledTimes(2));
+    expect(mocks.generate.mock.calls[1][0].timeout.totalMs).toBe(2_000);
+    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.waitFor(() => expect(mocks.generate).toHaveBeenCalledTimes(3));
+    expect(mocks.generate.mock.calls[2][0].timeout.totalMs).toBeGreaterThan(3_900);
+    expect(mocks.generate.mock.calls[2][0].timeout.totalMs).toBeLessThanOrEqual(4_000);
+    const response = await responsePromise;
+    expect(response.status).toBe(200);
   });
 
   it("returns at the original deadline when both model attempts stall", async () => {

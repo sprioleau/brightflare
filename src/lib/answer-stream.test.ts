@@ -140,6 +140,36 @@ describe("answer streaming", () => {
     expect(createFallbackAttempt).toHaveBeenCalledOnce();
   });
 
+  it("resets drafts between the Gemini alternate and OpenRouter final fallback", async () => {
+    async function* primaryPartials() { throw Object.assign(new Error("capacity"), { statusCode: 503 }); }
+    async function* alternatePartials() {
+      yield { answer: "Alternate provisional answer.", sourceIds: ["hours"], needsStaff: false };
+      throw Object.assign(new Error("quota"), { statusCode: 429 });
+    }
+    async function* openRouterPartials() {
+      yield { answer: "OpenRouter verified answer.", sourceIds: ["hours"], needsStaff: false };
+    }
+    const createGeminiAlternate = vi.fn(() => createAttempt(alternatePartials(), Promise.reject(Object.assign(new Error("quota"), { statusCode: 429 }))));
+    const createOpenRouterFallback = vi.fn(() => createAttempt(openRouterPartials(), Promise.resolve({ answer: "OpenRouter verified answer.", sourceIds: ["hours"], needsStaff: false })));
+    const response = createAnswerStreamResponse<Output, string, Final>({
+      createAttempt: () => createAttempt(primaryPartials(), Promise.reject(Object.assign(new Error("capacity"), { statusCode: 503 }))),
+      createFallbackAttempt: createGeminiAlternate,
+      additionalFallbackAttempts: [createOpenRouterFallback],
+      shouldFallback: (error) => [429, 503].includes((error as { statusCode?: number }).statusCode ?? 0),
+      getDraftValue: (partial) => (partial as { answer?: string }).answer ?? null,
+      resolveFinal: async (output) => ({ answer: output.answer, status: "answered" }),
+      onFailure: async () => undefined,
+      errorMessage: "Unable to answer.",
+    });
+
+    const events = [];
+    for await (const event of parseAnswerStream<string, Final>(response.body!)) events.push(event);
+    expect(events.map((event) => event.type)).toEqual(["draft", "reset", "draft", "final"]);
+    expect(events[2]).toEqual({ type: "draft", value: "OpenRouter verified answer." });
+    expect(createGeminiAlternate).toHaveBeenCalledOnce();
+    expect(createOpenRouterFallback).toHaveBeenCalledOnce();
+  });
+
   it("uses the original provider error when the SDK output promise wraps it", async () => {
     const originalError = { name: "StreamProviderError", statusCode: 503, code: "UNAVAILABLE", message: "This model is currently experiencing high demand. Please try again later." };
     const wrappedError = Object.assign(new Error("No output was generated."), { name: "NoOutputGeneratedError" });

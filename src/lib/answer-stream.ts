@@ -66,6 +66,7 @@ export function createRequestDeadline(signal: AbortSignal, timeoutMs: number): R
 export function createAnswerStreamResponse<TOutput, TDraft, TFinal>({
   createAttempt,
   createFallbackAttempt,
+  additionalFallbackAttempts,
   shouldFallback,
   signal,
   timeoutMs,
@@ -77,6 +78,7 @@ export function createAnswerStreamResponse<TOutput, TDraft, TFinal>({
 }: {
   createAttempt: (signal: AbortSignal) => MaybePromise<StreamAttempt<TOutput>>;
   createFallbackAttempt?: (signal: AbortSignal) => MaybePromise<StreamAttempt<TOutput> | null>;
+  additionalFallbackAttempts?: Array<(signal: AbortSignal) => MaybePromise<StreamAttempt<TOutput> | null>>;
   shouldFallback?: (error: unknown) => boolean;
   signal?: AbortSignal;
   timeoutMs?: number;
@@ -147,27 +149,48 @@ export function createAnswerStreamResponse<TOutput, TDraft, TFinal>({
       }
 
       async function runOperation() {
-        let output: TOutput;
+        let output!: TOutput;
         let currentAttempt: StreamAttempt<TOutput> | undefined;
         try {
           currentAttempt = await createAttempt(abortController.signal);
           output = await runAttempt(currentAttempt);
         } catch (error) {
           const attemptError = currentAttempt?.getOriginalError?.() ?? error;
-          const fallbackAttempt = !hasTimedOut && !signal?.aborted && shouldFallback?.(attemptError)
-            ? await createFallbackAttempt?.(abortController.signal)
-            : null;
-          if (!fallbackAttempt) throw attemptError;
+          const fallbackFactories = [createFallbackAttempt, ...additionalFallbackAttempts ?? []].filter((factory) => factory !== undefined);
+          if (hasTimedOut || signal?.aborted || !shouldFallback?.(attemptError) || fallbackFactories.length === 0) throw attemptError;
           if (hasDraft) {
             write({ type: "reset" });
             hasDraft = false;
             previousDraft = null;
           }
-          try {
-            output = await runAttempt(fallbackAttempt);
-          } catch (fallbackError) {
-            throw fallbackAttempt.getOriginalError?.() ?? fallbackError;
+          let fallbackError: unknown = attemptError;
+          let hasSucceeded = false;
+          for (const createFallback of fallbackFactories) {
+            if (hasTimedOut || signal?.aborted || abortController.signal.aborted) break;
+            let fallbackAttempt: StreamAttempt<TOutput> | null;
+            try {
+              fallbackAttempt = await createFallback(abortController.signal);
+            } catch (error) {
+              fallbackError = error;
+              if (!shouldFallback?.(fallbackError)) break;
+              continue;
+            }
+            if (!fallbackAttempt) continue;
+            if (hasDraft) {
+              write({ type: "reset" });
+              hasDraft = false;
+              previousDraft = null;
+            }
+            try {
+              output = await runAttempt(fallbackAttempt);
+              hasSucceeded = true;
+              break;
+            } catch (error) {
+              fallbackError = fallbackAttempt.getOriginalError?.() ?? error;
+              if (!shouldFallback?.(fallbackError)) break;
+            }
           }
+          if (!hasSucceeded) throw fallbackError;
         }
         if (isCanceled || hasTimedOut || signal?.aborted) return;
         hasStartedFinalization = true;
