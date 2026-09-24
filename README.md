@@ -10,17 +10,17 @@
 
 ### Family desk
 
-![Brightflare family desk on desktop](https://brightflare.sprioleau.dev/screenshots/parent-desktop.png)
+![Brightflare family desk on desktop](https://brightflare.sprioleau.dev/screenshots/parent-desktop.png?v=20260924-polish)
 
-![Brightflare family desk on a phone](https://brightflare.sprioleau.dev/screenshots/parent-mobile.png)
+![Brightflare family desk on a phone](https://brightflare.sprioleau.dev/screenshots/parent-mobile.png?v=20260924-polish)
 
 ### Staff workspace
 
-![Brightflare staff dashboard](https://brightflare.sprioleau.dev/screenshots/admin-dashboard.png)
+![Brightflare staff dashboard](https://brightflare.sprioleau.dev/screenshots/admin-dashboard.png?v=20260924-polish)
 
 ### Family handbook
 
-![Brightflare family handbook](https://brightflare.sprioleau.dev/screenshots/handbook-desktop.png?v=text-links)
+![Brightflare family handbook](https://brightflare.sprioleau.dev/screenshots/handbook-desktop.png?v=20260924-polish)
 
 These captures show the current app. Any standalone HTML style explorations are design proposals and are not part of the live interface.
 

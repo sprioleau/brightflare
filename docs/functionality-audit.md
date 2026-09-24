@@ -23,9 +23,15 @@
 - Handbook search, article selection, direct section links, review/source metadata, mobile browse disclosure, and actual center hours were checked. Handbook hours come from the existing public front-desk query; no backend deployment is required.
 - Admin drafts remain reviewable and never publish automatically. Stream/error/stale-result behavior is covered by regression tests. A successful live Admin AI suggestion was not verified in this pass.
 
+## Annotated UI polish
+
+- Family navigation and footer retain fixed viewport positions, with a scrolling body between them. Eight closed FAQs and the composer fit both iPad orientations; phone FAQs have equal widths and remain reachable by scrolling. Microphone and send controls sit inside the textarea, with reserved text padding.
+- The handbook return-to-chat CTA has no underline. Staff Add an answer is amber; draft tag removal uses a plain accessible X. Topic cards have visible padding, gaps, and clipped accent stripes.
+- All eight staff destinations have distinct URLs within a persistent shared layout. Browser navigation, history, and direct settings reload were verified. The selected destination is marked visually and with aria-current; Center settings stays at the desktop sidebar bottom.
+
 ## Release verification
 
-- Current full Vitest checkpoint: **18 files, 78 tests passed**. TypeScript, `git diff --check`, and the production build passed.
+- Current full Vitest checkpoint: **18 files, 80 tests passed**. TypeScript, `git diff --check`, and the production build passed.
 - Browser layout passed at **1024×768**, **768×1024**, and **390×844**. All eight closed FAQs and the composer fit both iPad orientations. Expanded answers remain scrollable in the FAQ region, retain their card surface, and leave chat unchanged. Phone announcements display their full message.
 - Refreshed screenshots are in `public/screenshots/`, with absolute production URLs in the README.
 - Live checks found both application and provider limits: a default-thinking Flash-Lite probe used a redundant source-tool roundtrip at 6.7 seconds; a direct-source attempt still exceeded eight seconds. The final minimal-thinking Gemini 3.5 Flash probe returned a real 503 `UNAVAILABLE` in about 2.5 seconds, before any text. The Flock reference independently documents minimal thinking as its fix for Flash-Lite latency. The revised fallback/deadline behavior is regression-tested; a successful real answer under the eight-second cap is not claimed. The production build also passed a browser check confirming that a private family question and Clear chat preserve an authenticated staff session. Deployment verification follows publication.

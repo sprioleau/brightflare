@@ -1,10 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import { Logo } from "@/components/brand/Logo"
 import { AppShell } from "@/components/brand/app-shell"
 import { AppToast } from "@/components/ui/app-toast"
-import { AdminWorkspaceNav, type AdminView } from "@/components/admin/admin-workspace-nav"
+import { AdminWorkspaceNav, adminViewPaths, type AdminView } from "@/components/admin/admin-workspace-nav"
+import CenterSettings from "@/components/admin/center-settings"
 import { parseAnswerStream } from "@/lib/answer-stream"
 import {
   ArrowUpRight,
@@ -206,12 +208,27 @@ function humanizeEvidence(value: string) {
     .replace(/question groups the related question topic/gi, "the related question topic")
 }
 
+function getAdminViewFromPathname(pathname: string | null): AdminView {
+  const matchingView = Object.entries(adminViewPaths).find(([, path]) => path === pathname)?.[0];
+  return (matchingView as AdminView | undefined) ?? "dashboard";
+}
+
+function getAdminViewFromLegacyQuery(value: string | null): AdminView | null {
+  const legacyView = value === "stream" ? "questions" : value === "inbox" ? "topics" : value;
+  return legacyView === "dashboard" || legacyView === "recommendations" || legacyView === "questions" ||
+    legacyView === "topics" || legacyView === "handbook" || legacyView === "featured" || legacyView === "announcement"
+    ? legacyView
+    : null;
+}
+
 export default function AdminConsole() {
+  const pathname = usePathname()
+  const router = useRouter()
+  const activeView = getAdminViewFromPathname(pathname)
   const [data, setData] = useState<AdminData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState("")
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null)
-  const [activeView, setActiveView] = useState<Exclude<AdminView, "settings">>("dashboard")
   const shouldScrollToViewRef = useRef(false)
   const shouldWaitForInitialLoadRef = useRef(false)
   const [search, setSearch] = useState("")
@@ -280,7 +297,7 @@ export default function AdminConsole() {
     assistAbortControllerRef.current?.abort()
   }, [])
 
-  function selectView(view: Exclude<AdminView, "settings">) {
+  const prepareViewChange = useCallback(function prepareViewChange(view: AdminView) {
     closeEditor()
     shouldScrollToViewRef.current = true
     if (activeView === view) {
@@ -289,9 +306,12 @@ export default function AdminConsole() {
         document.body.scrollTop = 0
         shouldScrollToViewRef.current = false
       })
-      return
     }
-    setActiveView(view)
+  }, [activeView, closeEditor])
+
+  function selectView(view: AdminView) {
+    prepareViewChange(view)
+    router.push(adminViewPaths[view])
   }
 
   useEffect(() => {
@@ -306,13 +326,18 @@ export default function AdminConsole() {
   }, [activeView, isLoading, isLoadingRecommendations])
 
   useEffect(() => {
-    const requestedView = new URLSearchParams(window.location.search).get("view")
-    const view = requestedView === "stream" ? "questions" : requestedView === "inbox" ? "topics" : requestedView
-    if (view !== "dashboard" && view !== "recommendations" && view !== "questions" && view !== "topics" && view !== "handbook" && view !== "featured" && view !== "announcement") return
+    closeEditor()
     shouldScrollToViewRef.current = true
+  }, [closeEditor, pathname])
+
+  useEffect(() => {
+    if (pathname !== "/admin") return
+    const requestedView = new URLSearchParams(window.location.search).get("view")
+    const legacyView = getAdminViewFromLegacyQuery(requestedView)
+    if (!legacyView) return
     shouldWaitForInitialLoadRef.current = true
-    setActiveView(view)
-  }, [])
+    router.replace(adminViewPaths[legacyView])
+  }, [pathname, router])
 
   const loadRecommendations = useCallback(async function loadRecommendations() {
     setIsLoadingRecommendations(true)
@@ -755,21 +780,20 @@ export default function AdminConsole() {
   return (
     <AppShell section="admin" centerName={data?.center.name}>
       <main className="admin-workspace space-y-6 [&_svg]:size-5 [&_svg]:stroke-[1.75]">
+        <div className="grid items-start gap-6 min-[971px]:grid-cols-[220px_minmax(0,1fr)]">
+        <AdminWorkspaceNav activeView={activeView} onNavigate={prepareViewChange} />
+        <div className="min-w-0">
         <div className="mb-6 flex flex-col justify-between gap-4 border-b pb-6 sm:flex-row sm:items-end">
           <div>
-            <h1 className="type-page-title">{activeView === "dashboard" ? "Staff workspace" : activeView === "recommendations" ? "Recommendations" : activeView === "questions" ? "Question stream" : activeView === "topics" ? "Question topics" : activeView === "featured" ? "Front desk layout" : activeView === "announcement" ? "Family announcement" : "Center handbook"}</h1>
-            <p className="type-supporting mt-1 max-w-2xl">{activeView === "dashboard" ? "See what families need and keep center answers current." : activeView === "recommendations" ? "Review source-backed ideas before anything appears for families." : activeView === "questions" ? "Recent public questions are here; private child details stay protected." : activeView === "topics" ? "Group repeated questions so one approved answer can help more families." : activeView === "featured" ? "Choose which approved answers families see first." : activeView === "announcement" ? "Share a timely update with families from the front desk." : "Published center answers and the sources families can verify."}</p>
+            <h1 className="type-page-title">{activeView === "settings" ? "Center settings" : activeView === "dashboard" ? "Staff workspace" : activeView === "recommendations" ? "Recommendations" : activeView === "questions" ? "Question stream" : activeView === "topics" ? "Question topics" : activeView === "featured" ? "Front desk layout" : activeView === "announcement" ? "Family announcement" : "Center handbook"}</h1>
+            <p className="type-supporting mt-1 max-w-2xl">{activeView === "settings" ? "Keep the details and writing guidance behind family answers current." : activeView === "dashboard" ? "See what families need and keep center answers current." : activeView === "recommendations" ? "Review source-backed ideas before anything appears for families." : activeView === "questions" ? "Recent public questions are here; private child details stay protected." : activeView === "topics" ? "Group repeated questions so one approved answer can help more families." : activeView === "featured" ? "Choose which approved answers families see first." : activeView === "announcement" ? "Share a timely update with families from the front desk." : "Published center answers and the sources families can verify."}</p>
           </div>
-          <Button type="button" variant="secondary" onClick={() => openNewEntry()} className="gap-2"><Plus className="size-5" strokeWidth={1.75} /> Add an answer</Button>
+          {activeView !== "settings" ? <Button type="button" onClick={() => openNewEntry()} className="gap-2"><Plus className="size-5" strokeWidth={1.75} /> Add an answer</Button> : null}
         </div>
-
-        <div className="grid items-start gap-6 min-[971px]:grid-cols-[220px_minmax(0,1fr)]">
-        <AdminWorkspaceNav activeView={activeView} onSelectView={selectView} />
-        <div className="min-w-0">
         {loadError && <Alert variant="destructive" className="mb-5"><CircleHelp className="h-4 w-4" /><AlertTitle>Couldn’t load your center data</AlertTitle><AlertDescription className="flex flex-wrap items-center justify-between gap-3">{loadError}<Button variant="secondary" size="sm" onClick={() => void loadData()}>Try again</Button></AlertDescription></Alert>}
 
         <div>
-        {isLoading && !data ? <Card className="flex min-h-72 items-center justify-center"><div className="flex items-center gap-3 text-muted-foreground"><LoaderCircle className="h-5 w-5 animate-spin" /> Loading your center…</div></Card> : activeView === "dashboard" ? (
+        {activeView === "settings" ? <CenterSettings isEmbedded /> : isLoading && !data ? <Card className="flex min-h-72 items-center justify-center"><div className="flex items-center gap-3 text-muted-foreground"><LoaderCircle className="h-5 w-5 animate-spin" /> Loading your center…</div></Card> : activeView === "dashboard" ? (
           <div className="space-y-5">
             <SectionHeading title="Your center at a glance" description="Start with items that need attention, then open the workspace you need." />
             <div className="grid gap-3 md:grid-cols-3">
@@ -825,7 +849,7 @@ export default function AdminConsole() {
           </div>
         ) : activeView === "topics" ? (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.88fr)]">
-            <Card className="min-w-0">
+            <Card className="min-w-0 overflow-hidden">
               <CardHeader className="border-b pb-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <SectionHeading title="Questions families are asking" description="Similar questions are grouped into topics. Counts use anonymous sessions." />
@@ -833,15 +857,17 @@ export default function AdminConsole() {
                 </div>
                 <div className="relative mt-4"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Search question topics" placeholder="Search topics or parent wording" value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" /></div>
               </CardHeader>
-              <div className="divide-y">
-                {topicGroups.length ? topicGroups.map(([category, topics]) => <section key={category} aria-label={`${category} category`}>
-                  <h3 className="type-subheading flex items-center gap-2 bg-muted/50 px-4 py-2">{category}{topics.some((topic) => topic.isCategorySuggested) && <span className="type-metadata">Suggested</span>}</h3>
-                  {topics.map((topic) => <Button variant="disclosure" type="button" key={topic.id} onClick={() => { setSelectedTopicId(topic.id); setAssistSuggestions([]); setAssistError("") }} className="relative !h-auto w-full justify-start whitespace-normal rounded-none border-x-0 border-t-0 px-4 py-3 pl-7 text-left text-foreground last:border-b-0"><span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${topic.status === "needs_answer" ? "bg-amber-500" : topic.status === "needs_review" ? "bg-blue-500" : "bg-emerald-500"}`} />
+              <div className="space-y-4 p-4">
+                {topicGroups.length ? topicGroups.map(([category, topics]) => <section key={category} aria-label={`${category} category`} className="space-y-2">
+                  <h3 className="type-subheading flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2">{category}{topics.some((topic) => topic.isCategorySuggested) && <span className="type-metadata">Suggested</span>}</h3>
+                  <div className="flex flex-col gap-2">
+                  {topics.map((topic) => <Button variant="disclosure" type="button" aria-pressed={selectedTopic?.id === topic.id} key={topic.id} onClick={() => { setSelectedTopicId(topic.id); setAssistSuggestions([]); setAssistError("") }} className="relative !h-auto w-full justify-start overflow-hidden whitespace-normal rounded-xl border px-4 py-4 pl-7 text-left text-foreground"><span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${topic.status === "needs_answer" ? "bg-amber-500" : topic.status === "needs_review" ? "bg-blue-500" : "bg-emerald-500"}`} />
                     <span className="flex w-full items-start justify-between gap-3">
                       <span className="min-w-0"><span className="mb-2 flex flex-wrap items-center gap-2"><Badge variant={statusVariant(topic.status)}>{statusLabel(topic.status)}</Badge><span className="type-metadata">{formatRelativeTime(topic.lastAskedAt)}</span></span><span className="block font-semibold leading-snug">{topic.title}</span><span className="mt-1 block line-clamp-1 type-supporting font-normal text-muted-foreground">“{topic.examples[0] ?? "Parent question"}”</span></span>
                       <span className="shrink-0 text-right"><span className="block type-panel-title tabular-nums">{topic.questionCount}</span><span className="block type-metadata font-normal text-muted-foreground">questions</span><span className="mt-1 block type-metadata font-normal text-muted-foreground">{topic.sessionCount} sessions</span></span>
                     </span>
                   </Button>)}
+                  </div>
                 </section>) : <div className="p-10 text-center type-supporting text-muted-foreground">No question topics match that search.</div>}
               </div>
             </Card>
@@ -859,7 +885,7 @@ export default function AdminConsole() {
                     <div className="border p-4"><div className="mb-2 flex items-center gap-2 type-supporting font-semibold"><WandSparkles className="size-4 text-primary" /> Admin assistant</div><p className="type-supporting">Use center history to draft a response or shape this into a short front desk FAQ. You approve every change.</p><div className="mt-3 grid gap-2 sm:grid-cols-2"><Button variant="secondary" size="sm" className="justify-start gap-2" disabled={assistMode !== null} onClick={() => void askAssistant("knowledge", selectedTopic)}>{assistMode === "knowledge" ? <LoaderCircle className="animate-spin" data-icon="inline-start" /> : <WandSparkles data-icon="inline-start" />} Draft an answer</Button><Button variant="secondary" size="sm" className="justify-start gap-2" onClick={() => openNewEntry({ topicId: selectedTopic.id, title: selectedTopic.title, category: "Family questions" })}><Plus data-icon="inline-start" /> Add to handbook</Button></div></div>
                     {assistError && <p className="type-supporting text-destructive" role="alert">{assistError}</p>}
                     {(assistResultMode === "knowledge" || assistMode === "knowledge") && assistSuggestions.length > 0 && <div aria-live="polite" className="border bg-card p-3"><div className="mb-2 flex items-center justify-between type-metadata font-semibold"><span>{assistMode === "knowledge" ? "Draft suggestion · checking center evidence" : "Assistant suggestion"}</span><Button size="sm" variant="secondary" disabled={assistMode === "knowledge"} onClick={() => openNewEntry({ topicId: selectedTopic.id, title: selectedTopic.title, answer: assistSuggestions[0], category: "Family questions" })}>Review & edit <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button></div><p className="line-clamp-4 type-supporting text-muted-foreground">{assistSuggestions[0]}</p></div>}
-                    {selectedTopic.status === "needs_answer" && <Button variant="secondary" className="w-full gap-2" onClick={() => openNewEntry({ topicId: selectedTopic.id, title: selectedTopic.title, category: "Family questions" })}>Write an approved answer <ChevronRight className="h-4 w-4" /></Button>}
+                    {selectedTopic.status === "needs_answer" && <Button className="w-full gap-2" onClick={() => openNewEntry({ topicId: selectedTopic.id, title: selectedTopic.title, category: "Family questions" })}>Write an approved answer <ChevronRight className="h-4 w-4" /></Button>}
                   </CardContent>
                 </> : <div className="p-12 text-center type-supporting text-muted-foreground">No topics yet. Parent questions will appear here as they come in.</div>}
               </Card>
@@ -923,7 +949,7 @@ export default function AdminConsole() {
               <Field label="Source type"><select aria-label="Source type" value={draft.sourceType} onChange={(event) => setDraft((current) => ({ ...current, sourceType: event.target.value as KnowledgeDraft["sourceType"] }))} className="h-10 w-full rounded-md border bg-background px-3 type-supporting"><option value="handbook">Family handbook</option><option value="center_update">Center update</option><option value="staff_policy">Staff policy</option><option value="other_approved_source">Other approved source</option></select></Field>
               <Field label="Citation" hint="Name the specific policy, section, or page families can verify against."><div><Input aria-label="Citation" list="admin-source-labels" required value={draft.sourceLabel} onChange={(event) => setDraft((current) => ({ ...current, sourceLabel: event.target.value }))} placeholder="e.g. Family Handbook · Hours & closures" /><datalist id="admin-source-labels">{sourceOptions.map((source) => <option key={source} value={source} />)}</datalist></div></Field>
               <Field label="Category"><Input aria-label="Category" value={draft.category} onChange={(event) => setDraft((current) => ({ ...current, category: event.target.value }))} placeholder="General, meals, schedule…" /></Field>
-              <Field label="Tags" hint="Add a few searchable topics, such as meals, billing, or arrival."><div className="flex gap-2"><Input aria-label="Add tag" value={tagInput} onChange={(event) => setTagInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addDraftTag() } }} placeholder="Add a tag" /><Button type="button" variant="secondary" onClick={addDraftTag}>Add tag</Button></div><div className="mt-2 flex flex-wrap gap-2">{draft.tags.map((tag) => <Badge key={tag} variant="secondary" className="gap-1">{tag}<Button type="button" variant="icon" size="icon-xs" aria-label={`Remove ${tag} tag`} onClick={() => setDraft((current) => ({ ...current, tags: current.tags.filter((item) => item !== tag) }))}><X aria-hidden="true" className="size-5" strokeWidth={1.75} /></Button></Badge>)}</div></Field>
+              <Field label="Tags" hint="Add a few searchable topics, such as meals, billing, or arrival."><div className="flex gap-2"><Input aria-label="Add tag" value={tagInput} onChange={(event) => setTagInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addDraftTag() } }} placeholder="Add a tag" /><Button type="button" variant="secondary" onClick={addDraftTag}>Add tag</Button></div><div className="mt-2 flex flex-wrap gap-2">{draft.tags.map((tag) => <Badge key={tag} variant="secondary" className="gap-1">{tag}<button type="button" aria-label={`Remove ${tag} tag`} className="ml-1 inline-flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" onClick={() => setDraft((current) => ({ ...current, tags: current.tags.filter((item) => item !== tag) }))}><X aria-hidden="true" className="size-5" strokeWidth={1.75} /></button></Badge>)}</div></Field>
               <div className="border p-4"><label className="flex cursor-pointer items-start gap-3"><input type="checkbox" checked={draft.isFeatured} onChange={(event) => setDraft((current) => ({ ...current, isFeatured: event.target.checked }))} className="mt-1 h-4 w-4 accent-primary" /><span><span className="block type-supporting font-semibold">Show on front desk</span><span className="type-metadata mt-0.5 block">Feature this answer as a visible FAQ card for parents.</span></span></label></div>
               <div className="grid gap-4 sm:grid-cols-2"><Field label="Starts on" hint="Optional"><Input aria-label="Starts on" type="date" value={draft.startsAt} onChange={(event) => setDraft((current) => ({ ...current, startsAt: event.target.value }))} /></Field><Field label="Ends on" hint="Optional"><Input aria-label="Ends on" type="date" value={draft.endsAt} onChange={(event) => setDraft((current) => ({ ...current, endsAt: event.target.value }))} /></Field></div>
               <p className="flex items-start gap-2 type-metadata leading-relaxed text-muted-foreground"><BookOpen className="mt-0.5 h-4 w-4 shrink-0" /> Published answers become part of the center handbook that supports parent responses. Seasonal dates keep time-sensitive information current.</p>

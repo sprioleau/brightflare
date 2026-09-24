@@ -20,8 +20,8 @@ it("saves center details and writing guidance together", async () => {
   const navigation = await screen.findByRole("navigation", { name: "Admin navigation" });
   expect(navigation).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Center settings" })).toHaveAttribute("aria-current", "page");
-  expect(screen.getByRole("link", { name: "Questions" })).toHaveAttribute("href", "/admin?view=stream");
-  expect(screen.getByRole("link", { name: "Question topics" })).toHaveAttribute("href", "/admin?view=inbox");
+  expect(screen.getByRole("link", { name: "Questions" })).toHaveAttribute("href", "/admin/questions");
+  expect(screen.getByRole("link", { name: "Question topics" })).toHaveAttribute("href", "/admin/topics");
   const hours = await screen.findByLabelText("Hours");
   fireEvent.change(hours, { target: { value: "Monday–Friday · 8 AM–5 PM" } });
   fireEvent.change(screen.getByLabelText("Tone of voice"), { target: { value: "Calm and concise" } });

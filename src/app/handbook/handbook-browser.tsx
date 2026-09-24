@@ -110,7 +110,7 @@ export function HandbookBrowser({ centerName, centerHours, handbookLabel, entrie
                     <div className="mt-6 border-t border-border pt-4">
                       <h3 className="type-panel-title">Still need help?</h3>
                       <p className="type-supporting mt-1 max-w-3xl">For questions specific to your family, speak with a member of the {centerName} team.</p>
-                      <Button asChild variant="link" size="sm" className="mt-3">
+                      <Button asChild variant="secondary" size="sm" className="mt-3">
                         <Link href="/">Ask another question<ArrowUpRight data-icon="inline-end" aria-hidden="true" /></Link>
                       </Button>
                     </div>

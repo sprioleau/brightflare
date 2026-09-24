@@ -1,0 +1,27 @@
+.navigation {
+  min-width: 0;
+}
+
+.activeLink {
+  border-color: #bf7417;
+  color: #20364c;
+  text-decoration: underline;
+  text-decoration-color: #20364c;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 7px;
+}
+
+.navigation :global(.ui-button--navigation[aria-current="page"]) {
+  --control-border: #bf7417;
+  color: #20364c;
+  text-decoration: underline;
+  text-decoration-color: #20364c;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 7px;
+}
+
+@media (min-width: 971px) {
+  .navigation {
+    min-height: calc(100dvh - var(--app-header-height) - clamp(1.35rem, 2.5vw, 2.35rem));
+  }
+}

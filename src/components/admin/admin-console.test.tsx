@@ -3,6 +3,49 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import AdminConsole from "./admin-console"
 
+const routerMocks = vi.hoisted(() => {
+  let pathname = "/admin/dashboard";
+  const listeners = new Set<() => void>();
+  return {
+    getPathname: () => pathname,
+    setPathname: (nextPathname: string) => {
+      pathname = nextPathname;
+      for (const listener of listeners) listener();
+    },
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+});
+
+vi.mock("next/navigation", async () => {
+  const React = await import("react");
+  return {
+    usePathname: () => React.useSyncExternalStore(routerMocks.subscribe, routerMocks.getPathname, routerMocks.getPathname),
+    useRouter: () => ({
+      push: (href: string) => routerMocks.setPathname(new URL(href, "http://localhost").pathname),
+      replace: (href: string) => routerMocks.setPathname(new URL(href, "http://localhost").pathname),
+    }),
+  };
+});
+
+vi.mock("next/link", async () => {
+  const React = await import("react");
+  function MockLink({ href, children, onClick, ...props }: { href: string; children: React.ReactNode; onClick?: React.MouseEventHandler<HTMLAnchorElement> }) {
+    return React.createElement("a", {
+      ...props,
+      href,
+      onClick: (event: React.MouseEvent<HTMLAnchorElement>) => {
+        onClick?.(event);
+        event.preventDefault();
+        routerMocks.setPathname(new URL(href, "http://localhost").pathname);
+      },
+    }, children);
+  }
+  return { default: MockLink };
+});
+
 const adminPayload = {
   center: { name: "Little Lantern Learning Center" },
   topics: [
@@ -53,6 +96,7 @@ afterEach(() => {
 
 describe("AdminConsole", () => {
   beforeEach(() => {
+    routerMocks.setPathname("/admin/dashboard");
     dashboardPayload = adminPayload
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input) === "/api/auth") {
@@ -81,24 +125,50 @@ describe("AdminConsole", () => {
     }))
   })
 
-  it("opens focused workspace views from the admin navigation", async () => {
+  it("uses individual admin links and follows browser back and forward paths", async () => {
     render(<AdminConsole />)
     await screen.findByRole("heading", { name: "Staff workspace" })
     const navigation = within(screen.getByRole("navigation", { name: "Admin navigation" }))
 
-    fireEvent.click(navigation.getByRole("button", { name: "Handbook" }))
+    expect(Array.from(navigation.getAllByRole("link")).map((link) => link.getAttribute("href"))).toEqual([
+      "/admin/dashboard",
+      "/admin/recommendations",
+      "/admin/questions",
+      "/admin/topics",
+      "/admin/handbook",
+      "/admin/featured",
+      "/admin/announcement",
+      "/admin/settings",
+    ])
+    fireEvent.click(navigation.getByRole("link", { name: "Handbook" }))
     expect(screen.getByRole("heading", { name: "Center handbook", level: 1 })).toBeInTheDocument()
 
-    fireEvent.click(navigation.getByRole("button", { name: /Question topics/ }))
+    fireEvent.click(navigation.getByRole("link", { name: /Question topics/ }))
     expect(screen.getByLabelText("Search question topics")).toBeInTheDocument()
+    expect(navigation.getByRole("link", { name: /Question topics/ })).toHaveAttribute("aria-current", "page")
+
+    routerMocks.setPathname("/admin/handbook")
+    expect(await screen.findByRole("heading", { name: "Center handbook", level: 1 })).toBeInTheDocument()
+  })
+
+  it("keeps admin workspace state while switching between individual routes", async () => {
+    render(<AdminConsole />)
+    await screen.findByRole("heading", { name: "Staff workspace" })
+    fireEvent.click(screen.getByRole("link", { name: /Question topics/ }))
+    fireEvent.change(screen.getByLabelText("Search question topics"), { target: { value: "teacher" } })
+    routerMocks.setPathname("/admin/questions")
+    routerMocks.setPathname("/admin/topics")
+
+    expect(screen.getByLabelText("Search question topics")).toHaveValue("teacher")
   })
 
   it("links an approved handbook answer to the unanswered parent topic", async () => {
     render(<AdminConsole />)
 
-    fireEvent.click(await screen.findByRole("button", { name: /Question topics/ }))
+    fireEvent.click(await screen.findByRole("link", { name: /Question topics/ }))
     await screen.findByRole("button", { name: /Are we open on the teacher workday\?/ })
     fireEvent.click(screen.getByRole("button", { name: "Write an approved answer" }))
+    expect(screen.getByRole("button", { name: "Save to handbook" })).toHaveAttribute("data-variant", "default")
 
     fireEvent.change(screen.getByLabelText("Short answer"), { target: { value: "Yes, we are open during our usual hours." } })
     fireEvent.change(screen.getByLabelText("Full answer"), { target: { value: "The center will be open from 7:30 AM to 5:30 PM on the teacher workday." } })
@@ -118,6 +188,20 @@ describe("AdminConsole", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/admin", { cache: "no-store" }))
   })
 
+  it("removes a tag through a plain accessible X control", async () => {
+    render(<AdminConsole />)
+    await screen.findByRole("heading", { name: "Staff workspace" })
+    fireEvent.click(screen.getByRole("button", { name: "Add an answer" }))
+    const tagInput = screen.getByLabelText("Add tag")
+    fireEvent.change(tagInput, { target: { value: "Arrival" } })
+    fireEvent.keyDown(tagInput, { key: "Enter" })
+    const removeButton = screen.getByRole("button", { name: "Remove Arrival tag" })
+
+    expect(removeButton).not.toHaveClass("ui-button")
+    fireEvent.click(removeButton)
+    expect(screen.queryByRole("button", { name: "Remove Arrival tag" })).not.toBeInTheDocument()
+  })
+
   it("shows individual recent questions and keeps private child wording hidden", async () => {
     dashboardPayload = {
       ...adminPayload,
@@ -128,7 +212,7 @@ describe("AdminConsole", () => {
     }
     render(<AdminConsole />)
     expect(await screen.findByText("Can I bring sunscreen?")).toBeInTheDocument()
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Admin navigation" })).getByRole("button", { name: "Questions" }))
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Admin navigation" })).getByRole("link", { name: "Questions" }))
 
     expect(await screen.findByText("Will the center be open on the teacher workday?")).toBeInTheDocument()
     expect(screen.getByText("Can I bring sunscreen?")).toBeInTheDocument()
@@ -142,7 +226,7 @@ describe("AdminConsole", () => {
 
   it("loads FAQ recommendations and publishes an edited recommendation immediately", async () => {
     render(<AdminConsole />)
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Admin navigation" })).getByRole("button", { name: /Recommendations/ }))
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Admin navigation" })).getByRole("link", { name: /Recommendations/ }))
 
     expect(await screen.findByRole("heading", { name: "Is the center open on Labor Day?" })).toBeInTheDocument()
     expect(screen.getByText(/4 families asked about holiday hours/)).toBeInTheDocument()
@@ -166,7 +250,7 @@ describe("AdminConsole", () => {
 
   it("filters recommendations by status and search text", async () => {
     render(<AdminConsole />)
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Admin navigation" })).getByRole("button", { name: /Recommendations/ }))
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Admin navigation" })).getByRole("link", { name: /Recommendations/ }))
 
     expect(await screen.findByRole("heading", { name: "Is the center open on Labor Day?" })).toBeInTheDocument()
     expect(screen.getAllByText("Needs staff").length).toBeGreaterThan(0)
@@ -248,7 +332,7 @@ describe("AdminConsole", () => {
       ],
     }
     render(<AdminConsole />)
-    fireEvent.click(await screen.findByRole("button", { name: "Front desk layout" }))
+    fireEvent.click(await screen.findByRole("link", { name: "Front desk layout" }))
     expect(screen.getByRole("heading", { name: "Family preview" })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText("Search front desk answers"), { target: { value: "packing" } })
     expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument()
@@ -265,7 +349,7 @@ describe("AdminConsole", () => {
   it("saves an announcement and keeps its authored text when visibility is toggled off", async () => {
     render(<AdminConsole />)
     const navigation = within(await screen.findByRole("navigation", { name: "Admin navigation" }))
-    fireEvent.click(navigation.getByRole("button", { name: "Announcement" }))
+    fireEvent.click(navigation.getByRole("link", { name: "Announcement" }))
     fireEvent.change(screen.getByLabelText("Announcement title"), { target: { value: "Staff learning day" } })
     fireEvent.change(screen.getByLabelText("Announcement message"), { target: { value: "We are open regular hours on October 12." } })
     fireEvent.click(screen.getByLabelText("Show announcement on front desk"))

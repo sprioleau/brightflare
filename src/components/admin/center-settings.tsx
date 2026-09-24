@@ -40,7 +40,7 @@ function TextField({ label, value, onChange, hint }: { label: string; value: str
   );
 }
 
-export default function CenterSettings() {
+export default function CenterSettings({ isEmbedded = false }: { isEmbedded?: boolean }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -93,6 +93,51 @@ export default function CenterSettings() {
     }
   }
 
+  const settingsFields = (
+    <>
+      {error ? <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 type-supporting text-destructive">{error}{!settings ? <> <a href="/admin" className="font-semibold underline">Go to sign in</a></> : null}</p> : null}
+      {!settings && !error ? <p role="status" className="type-supporting">Loading center settings…</p> : null}
+      {settings ? (
+        <form onSubmit={save} className="flex max-w-[1120px] flex-col gap-5">
+          <Card>
+            <CardHeader className="border-b pb-4">
+              <CardTitle className="type-panel-title">Center information</CardTitle>
+              <CardDescription>Families see these details at the front desk and in the handbook.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-5 pt-5 sm:grid-cols-2">
+              <div className="sm:col-span-2"><TextField label="Center name" value={settings.name} onChange={(value) => update("name", value)} /></div>
+              <div className="sm:col-span-2"><TextField label="Hours" value={settings.hours} onChange={(value) => update("hours", value)} hint="Include days and opening times. Confirm holiday exceptions in the handbook." /></div>
+              <div className="sm:col-span-2"><TextField label="Tagline" value={settings.tagline} onChange={(value) => update("tagline", value)} /></div>
+              <TextField label="Time zone" value={settings.timezone} onChange={(value) => update("timezone", value)} />
+              <TextField label="Handbook title" value={settings.handbookLabel} onChange={(value) => update("handbookLabel", value)} />
+              <div className="sm:col-span-2"><TextField label="Center website" value={settings.websiteUrl} onChange={(value) => update("websiteUrl", value)} hint="Optional external reference. Published handbook answers remain available in Brightflare." /></div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="border-b pb-4">
+              <CardTitle className="type-panel-title">Agent writing guidance</CardTitle>
+              <CardDescription>Brightflare uses this guidance when drafting answers and recommendations. Staff review changes before publication.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-5 pt-5">
+              <TextField label="Tone of voice" value={settings.tone} onChange={(value) => update("tone", value)} />
+              <TextField label="Audience" value={settings.audience} onChange={(value) => update("audience", value)} />
+              <div className="grid gap-5 sm:grid-cols-2">
+                <div className="flex flex-col gap-2"><Label htmlFor="preferred-terms">Preferred terms</Label><Textarea id="preferred-terms" rows={4} value={settings.preferredTerms.join("\n")} onChange={(event) => update("preferredTerms", splitLines(event.target.value))} /><p className="type-supporting text-muted-foreground">One term per line.</p></div>
+                <div className="flex flex-col gap-2"><Label htmlFor="forbidden-terms">Terms to avoid</Label><Textarea id="forbidden-terms" rows={4} value={settings.forbiddenTerms.join("\n")} onChange={(event) => update("forbiddenTerms", splitLines(event.target.value))} /><p className="type-supporting text-muted-foreground">One term per line.</p></div>
+              </div>
+              <div className="flex flex-col gap-2"><Label htmlFor="center-glossary">Center glossary</Label><Textarea id="center-glossary" rows={4} value={settings.glossary.map(({ term, definition }) => `${term}: ${definition}`).join("\n")} onChange={(event) => update("glossary", splitLines(event.target.value).map((line) => { const [term, ...definition] = line.split(":"); return { term: term.trim(), definition: definition.join(":").trim() }; }).filter(({ term, definition }) => term && definition))} /><p className="type-supporting text-muted-foreground">One entry per line: term: meaning.</p></div>
+            </CardContent>
+          </Card>
+          <div className="flex items-center gap-4"><Button type="submit" disabled={isSaving}>{isSaving ? "Saving…" : "Save settings"}</Button></div>
+        </form>
+      ) : null}
+    </>
+  );
+
+  if (isEmbedded) {
+    return <div className="min-w-0 space-y-5">{settingsFields}{message ? <AppToast message={message} onDismiss={() => setMessage("")} /> : null}</div>;
+  }
+
   return (
     <AppShell section="admin" centerName={settings?.name}>
       <main className="admin-workspace space-y-6 [&_svg]:size-5 [&_svg]:stroke-[1.75]">
@@ -104,44 +149,7 @@ export default function CenterSettings() {
         </div>
         <div className="grid items-start gap-6 min-[971px]:grid-cols-[220px_minmax(0,1fr)]">
           <AdminWorkspaceNav activeView="settings" />
-          <div className="min-w-0 space-y-5">
-        {error ? <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 type-supporting text-destructive">{error}{!settings ? <> <a href="/admin" className="font-semibold underline">Go to sign in</a></> : null}</p> : null}
-        {!settings && !error ? <p role="status" className="type-supporting">Loading center settings…</p> : null}
-        {settings ? (
-          <form onSubmit={save} className="flex max-w-[1120px] flex-col gap-5">
-            <Card>
-              <CardHeader className="border-b pb-4">
-                <CardTitle className="type-panel-title">Center information</CardTitle>
-                <CardDescription>Families see these details at the front desk and in the handbook.</CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-5 pt-5 sm:grid-cols-2">
-                <div className="sm:col-span-2"><TextField label="Center name" value={settings.name} onChange={(value) => update("name", value)} /></div>
-                <div className="sm:col-span-2"><TextField label="Hours" value={settings.hours} onChange={(value) => update("hours", value)} hint="Include days and opening times. Confirm holiday exceptions in the handbook." /></div>
-                <div className="sm:col-span-2"><TextField label="Tagline" value={settings.tagline} onChange={(value) => update("tagline", value)} /></div>
-                <TextField label="Time zone" value={settings.timezone} onChange={(value) => update("timezone", value)} />
-                <TextField label="Handbook title" value={settings.handbookLabel} onChange={(value) => update("handbookLabel", value)} />
-                <div className="sm:col-span-2"><TextField label="Center website" value={settings.websiteUrl} onChange={(value) => update("websiteUrl", value)} hint="Optional external reference. Published handbook answers remain available in Brightflare." /></div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="border-b pb-4">
-                <CardTitle className="type-panel-title">Agent writing guidance</CardTitle>
-                <CardDescription>Brightflare uses this guidance when drafting answers and recommendations. Staff review changes before publication.</CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-5 pt-5">
-                <TextField label="Tone of voice" value={settings.tone} onChange={(value) => update("tone", value)} />
-                <TextField label="Audience" value={settings.audience} onChange={(value) => update("audience", value)} />
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div className="flex flex-col gap-2"><Label htmlFor="preferred-terms">Preferred terms</Label><Textarea id="preferred-terms" rows={4} value={settings.preferredTerms.join("\n")} onChange={(event) => update("preferredTerms", splitLines(event.target.value))} /><p className="type-supporting text-muted-foreground">One term per line.</p></div>
-                  <div className="flex flex-col gap-2"><Label htmlFor="forbidden-terms">Terms to avoid</Label><Textarea id="forbidden-terms" rows={4} value={settings.forbiddenTerms.join("\n")} onChange={(event) => update("forbiddenTerms", splitLines(event.target.value))} /><p className="type-supporting text-muted-foreground">One term per line.</p></div>
-                </div>
-                <div className="flex flex-col gap-2"><Label htmlFor="center-glossary">Center glossary</Label><Textarea id="center-glossary" rows={4} value={settings.glossary.map(({ term, definition }) => `${term}: ${definition}`).join("\n")} onChange={(event) => update("glossary", splitLines(event.target.value).map((line) => { const [term, ...definition] = line.split(":"); return { term: term.trim(), definition: definition.join(":").trim() }; }).filter(({ term, definition }) => term && definition))} /><p className="type-supporting text-muted-foreground">One entry per line: term: meaning.</p></div>
-              </CardContent>
-            </Card>
-            <div className="flex items-center gap-4"><Button type="submit" disabled={isSaving}>{isSaving ? "Saving…" : "Save settings"}</Button></div>
-          </form>
-        ) : null}
-          </div>
+          <div className="min-w-0 space-y-5">{settingsFields}</div>
         </div>
         {message ? <AppToast message={message} onDismiss={() => setMessage("")} /> : null}
       </main>
