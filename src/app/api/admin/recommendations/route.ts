@@ -14,6 +14,8 @@ const draftSchema = z.object({
   shortAnswer: z.string().trim().min(8).max(180),
   answer: z.string().trim().min(12).max(2000),
   sourceLabel: z.string().trim().min(3).max(120),
+  sourceType: z.enum(["handbook", "center_update", "staff_policy", "other_approved_source"]).optional(),
+  tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
   category: z.string().trim().min(2).max(60),
   isFeatured: z.boolean(),
 });

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import AdminConsole from "./admin-console"
@@ -43,6 +43,8 @@ const recommendationPayload = {
   }],
 }
 
+let dashboardPayload: object = adminPayload
+
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
@@ -51,12 +53,13 @@ afterEach(() => {
 
 describe("AdminConsole", () => {
   beforeEach(() => {
+    dashboardPayload = adminPayload
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input) === "/api/auth") {
         return Response.json({ role: "admin" })
       }
       if (String(input) === "/api/admin") {
-        return Response.json(adminPayload)
+        return Response.json(dashboardPayload)
       }
       if (String(input) === "/api/admin/recommendations" && init?.method === "POST") {
         return Response.json({ success: true })
@@ -64,24 +67,30 @@ describe("AdminConsole", () => {
       if (String(input) === "/api/admin/recommendations") {
         return Response.json(recommendationPayload)
       }
+      if (String(input) === "/api/admin/announcement") {
+        if (init?.method === "POST") return Response.json({ ok: true })
+        return Response.json({ title: "", message: "", isActive: false })
+      }
       if (String(input) === "/api/admin/knowledge" && init?.method === "POST") {
         return Response.json({ knowledgeId: "policy-workday" })
+      }
+      if (String(input) === "/api/admin/featured-order" && init?.method === "POST") {
+        return Response.json(JSON.parse(String(init.body)))
       }
       return Response.json({ suggestions: [] })
     }))
   })
 
-  it("opens the matching workspace view from its summary card", async () => {
+  it("opens focused workspace views from the admin navigation", async () => {
     render(<AdminConsole />)
-    await screen.findByText("Will the center be open on the teacher workday?")
+    await screen.findByRole("heading", { name: "Good morning, team" })
+    const navigation = within(screen.getByRole("navigation", { name: "Admin navigation" }))
 
-    fireEvent.click(screen.getByRole("button", { name: /In the handbook/ }))
-    expect(screen.getByText("Center handbook")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /In the handbook/ })).toHaveAttribute("aria-pressed", "true")
+    fireEvent.click(navigation.getByRole("button", { name: "Handbook" }))
+    expect(screen.getByRole("heading", { name: "Center handbook", level: 1 })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: /Need your answer/ }))
+    fireEvent.click(navigation.getByRole("button", { name: /Question topics/ }))
     expect(screen.getByLabelText("Search question topics")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /Need your answer/ })).toHaveAttribute("aria-pressed", "true")
   })
 
   it("links an approved handbook answer to the unanswered parent topic", async () => {
@@ -93,7 +102,7 @@ describe("AdminConsole", () => {
 
     fireEvent.change(screen.getByLabelText("Short answer"), { target: { value: "Yes, we are open during our usual hours." } })
     fireEvent.change(screen.getByLabelText("Full answer"), { target: { value: "The center will be open from 7:30 AM to 5:30 PM on the teacher workday." } })
-    fireEvent.change(screen.getByLabelText("Source"), { target: { value: "Center calendar · October" } })
+    fireEvent.change(screen.getByLabelText("Citation"), { target: { value: "Center calendar · October" } })
     fireEvent.click(screen.getByRole("button", { name: "Save to handbook" }))
 
     await screen.findByText("Handbook answer saved and ready for parents.")
@@ -110,9 +119,21 @@ describe("AdminConsole", () => {
   })
 
   it("shows individual recent questions and keeps private child wording hidden", async () => {
+    dashboardPayload = {
+      ...adminPayload,
+      questions: [
+        { id: "question-unlinked", question: "Can I bring sunscreen?", topicId: null, topicTitle: null, askedAt: "2026-09-24T14:00:00.000Z", outcome: "answered", sourceStatus: "sourced", isPrivate: false },
+        ...adminPayload.questions,
+      ],
+    }
     render(<AdminConsole />)
+    expect(await screen.findByText("Can I bring sunscreen?")).toBeInTheDocument()
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Admin navigation" })).getByRole("button", { name: "Questions" }))
 
     expect(await screen.findByText("Will the center be open on the teacher workday?")).toBeInTheDocument()
+    expect(screen.getByText("Can I bring sunscreen?")).toBeInTheDocument()
+    expect(screen.getByText(/No grouped topic yet/)).toBeInTheDocument()
+    expect(screen.getAllByRole("time")).toHaveLength(3)
     expect(screen.getByText("Private child question")).toBeInTheDocument()
     expect(screen.getByText(/Private family question/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Review topic" }))
@@ -121,13 +142,14 @@ describe("AdminConsole", () => {
 
   it("loads FAQ recommendations and publishes an edited recommendation immediately", async () => {
     render(<AdminConsole />)
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Admin navigation" })).getByRole("button", { name: /Recommendations/ }))
 
     expect(await screen.findByRole("heading", { name: "Is the center open on Labor Day?" })).toBeInTheDocument()
     expect(screen.getByText(/4 families asked about holiday hours/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Edit" }))
     fireEvent.change(screen.getByLabelText("Short answer"), { target: { value: "We are closed on Labor Day." } })
     fireEvent.change(screen.getByLabelText("Full answer"), { target: { value: "The center is closed on Labor Day." } })
-    fireEvent.change(screen.getByLabelText("Source"), { target: { value: "Center holiday calendar" } })
+    fireEvent.change(screen.getByLabelText("Citation"), { target: { value: "Center holiday calendar" } })
     fireEvent.click(screen.getByRole("button", { name: "Save edits" }))
 
     expect(await screen.findByText("Recommendation changes saved. Approve when they’re ready to publish.")).toBeInTheDocument()
@@ -144,6 +166,7 @@ describe("AdminConsole", () => {
 
   it("filters recommendations by status and search text", async () => {
     render(<AdminConsole />)
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Admin navigation" })).getByRole("button", { name: /Recommendations/ }))
 
     expect(await screen.findByRole("heading", { name: "Is the center open on Labor Day?" })).toBeInTheDocument()
     expect(screen.getAllByText("Needs staff").length).toBeGreaterThan(0)
@@ -152,5 +175,61 @@ describe("AdminConsole", () => {
     fireEvent.click(screen.getByRole("button", { name: "All" }))
     fireEvent.change(screen.getByLabelText("Search recommendations"), { target: { value: "winter break" } })
     expect(screen.getByText("No recommendations match these filters.")).toBeInTheDocument()
+  })
+
+  it("opens Add an answer and closes the editor with its icon button", async () => {
+    render(<AdminConsole />)
+    fireEvent.click(await screen.findByRole("button", { name: "Add an answer" }))
+    expect(screen.getByRole("dialog", { name: "Add an answer" })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("FAQ title"), { target: { value: "New center answer" } })
+    fireEvent.click(screen.getByRole("button", { name: "Close editor" }))
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Add an answer" }))
+    expect(screen.getByLabelText("FAQ title")).toHaveValue("")
+    expect(screen.getByRole("combobox", { name: "Source type" })).toHaveValue("handbook")
+  })
+
+  it("searches the front desk card picker and saves the chosen card order", async () => {
+    dashboardPayload = {
+      ...adminPayload,
+      knowledge: [
+        { id: "first", title: "What are your hours?", shortAnswer: "We are open weekdays.", answer: "We are open weekdays.", sourceLabel: "Family Handbook · Hours", category: "Hours", isFeatured: true, tags: ["schedule"], featuredOrder: 0 },
+        { id: "second", title: "What should my child bring?", shortAnswer: "Bring a change of clothes.", answer: "Bring a change of clothes.", sourceLabel: "Family Handbook · What to bring", category: "Daily routines", isFeatured: true, tags: ["packing"], featuredOrder: 1 },
+        { id: "draft", title: "What is the late pickup fee?", shortAnswer: "Ask the office for the current fee.", answer: "Ask the office for the current fee.", sourceLabel: "Family Handbook · Hours and fees", category: "Fees", isFeatured: false, status: "draft", tags: ["billing"] },
+      ],
+    }
+    render(<AdminConsole />)
+    fireEvent.click(await screen.findByRole("button", { name: "Front desk layout" }))
+    expect(screen.getByRole("heading", { name: "Family preview" })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Search front desk answers"), { target: { value: "packing" } })
+    expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Search front desk answers"), { target: { value: "billing" } })
+    expect(screen.getByRole("button", { name: "Publish first" })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Move What should my child bring? up" }))
+    await waitFor(() => {
+      const saveCall = vi.mocked(fetch).mock.calls.find(([url, init]) => String(url) === "/api/admin/featured-order" && init?.method === "POST")
+      expect(JSON.parse(String(saveCall?.[1]?.body))).toEqual({ orderedIds: ["second", "first"] })
+    })
+  })
+
+  it("saves an announcement and keeps its authored text when visibility is toggled off", async () => {
+    render(<AdminConsole />)
+    const navigation = within(await screen.findByRole("navigation", { name: "Admin navigation" }))
+    fireEvent.click(navigation.getByRole("button", { name: "Announcement" }))
+    fireEvent.change(screen.getByLabelText("Announcement title"), { target: { value: "Staff learning day" } })
+    fireEvent.change(screen.getByLabelText("Announcement message"), { target: { value: "We are open regular hours on October 12." } })
+    fireEvent.click(screen.getByLabelText("Show announcement on front desk"))
+    fireEvent.click(screen.getByRole("button", { name: "Save announcement" }))
+
+    await waitFor(() => {
+      const saveCall = vi.mocked(fetch).mock.calls.find(([url, init]) => String(url) === "/api/admin/announcement" && init?.method === "POST")
+      expect(JSON.parse(String(saveCall?.[1]?.body))).toEqual({ title: "Staff learning day", message: "We are open regular hours on October 12.", isActive: true })
+    })
+    expect(screen.getByRole("status")).toHaveTextContent("live on the front desk")
+    fireEvent.click(screen.getByLabelText("Show announcement on front desk"))
+    expect(screen.getByLabelText("Announcement title")).toHaveValue("Staff learning day")
+    expect(screen.getByLabelText("Announcement message")).toHaveValue("We are open regular hours on October 12.")
   })
 })

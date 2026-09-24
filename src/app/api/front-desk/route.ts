@@ -18,6 +18,7 @@ export async function GET() {
         tagline: result.center.tagline,
         hours: result.center.hours,
         handbookLabel: result.center.handbookLabel,
+        announcement: result.center.announcement,
       },
       faqs: [...result.featured, ...result.evergreen].map((faq) => ({
         ...faq,

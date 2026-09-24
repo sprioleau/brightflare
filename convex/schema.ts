@@ -2,6 +2,12 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 const knowledgeStatus = v.union(v.literal("published"), v.literal("draft"));
+const knowledgeSourceType = v.union(
+  v.literal("handbook"),
+  v.literal("center_update"),
+  v.literal("staff_policy"),
+  v.literal("other_approved_source"),
+);
 const topicStatus = v.union(
   v.literal("needs_answer"),
   v.literal("needs_review"),
@@ -25,6 +31,7 @@ export default defineSchema({
     forbiddenTerms: v.optional(v.array(v.string())),
     glossary: v.optional(v.array(v.object({ term: v.string(), meaning: v.string() }))),
     recommendationsAnalyzedAt: v.optional(v.number()),
+    announcement: v.optional(v.object({ title: v.string(), message: v.string(), isActive: v.boolean() })),
   }).index("by_slug", ["slug"]),
   knowledge: defineTable({
     centerId: v.id("centers"),
@@ -32,8 +39,11 @@ export default defineSchema({
     shortAnswer: v.string(),
     answer: v.string(),
     sourceLabel: v.string(),
+    sourceType: v.optional(knowledgeSourceType),
     category: v.string(),
     isFeatured: v.boolean(),
+    tags: v.optional(v.array(v.string())),
+    featuredOrder: v.optional(v.number()),
     startsAt: v.optional(v.number()),
     endsAt: v.optional(v.number()),
     reviewedAt: v.number(),
@@ -105,6 +115,8 @@ export default defineSchema({
     shortAnswer: v.string(),
     answer: v.string(),
     sourceLabel: v.string(),
+    sourceType: v.optional(knowledgeSourceType),
+    tags: v.optional(v.array(v.string())),
     category: v.string(),
     isFeatured: v.boolean(),
     startsAt: v.optional(v.number()),
