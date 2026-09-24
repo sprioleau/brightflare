@@ -23,7 +23,7 @@
 
 ### Staff workspace
 
-![brightflare staff dashboard](https://brightflare.sprioleau.dev/screenshots/admin-dashboard.png?v=20260924-final)
+![brightflare staff dashboard](https://brightflare.sprioleau.dev/screenshots/admin-dashboard.png?v=20260924-reviewer-access)
 
 ### Family handbook
 
@@ -52,8 +52,8 @@ I drew visual inspiration from my earlier projects [teeny.fun](https://teeny.fun
 
 Gemini inference uses free-tier accounts and may be rate-limited. OpenRouter fallback is implemented but remains inactive by default while a reliable model for both parent answers and staff assistance is being verified.
 
-- Staff workspace: open `/admin` and use the demo credential configured for the environment.
-- The backend family verification flow uses an environment-configured demo credential and a fictional family record. The shared desk currently has no family PIN entry screen and routes those questions to staff.
+- Staff workspace: open [Admin](https://brightflare.sprioleau.dev/admin) and enter the demo center PIN **2468**.
+- Family verification API demo: PIN **1357** is configured for the fictional child **Mia Carter**. The shared family desk has no PIN entry screen; parents can browse FAQs and ask general questions without signing in. Child-specific questions at the shared desk are directed to staff.
 
 Demo credentials are not a production authentication scheme. Credentials are configured outside this repository.
 
