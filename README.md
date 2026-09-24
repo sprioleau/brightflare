@@ -20,7 +20,7 @@
 
 ### Family handbook
 
-![Brightflare family handbook](https://brightflare.sprioleau.dev/screenshots/handbook-desktop.png)
+![Brightflare family handbook](https://brightflare.sprioleau.dev/screenshots/handbook-desktop.png?v=text-links)
 
 These captures show the current app. Any standalone HTML style explorations are design proposals and are not part of the live interface.
 

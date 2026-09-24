@@ -80,13 +80,18 @@ export function HandbookBrowser({ centerName, centerHours, handbookLabel, entrie
                 <h2 className="type-panel-title mb-2 mt-4 px-1">Browse answers</h2>
                 {categoryGroups.length === 0 ? <p role="status" className="type-supporting px-1 py-3">No answers match your search.</p> : categoryGroups.map(({ category, entries: groupedEntries }) => <div key={category} className="border-t border-border py-2">
                   <h3 className="type-subheading mb-1 px-1">{category}</h3>
-                  <ul className="space-y-1">{groupedEntries.map((entry) => <li key={entry.id}>
-                    <Button asChild variant="navigation" size="sm" className="h-auto min-h-11 w-full justify-start whitespace-normal text-left">
-                      <Link href={`/handbook/${encodeURIComponent(entry.id)}`} aria-current={entry.id === selectedEntry?.id ? "page" : undefined}>
-                        <ChevronRight aria-hidden="true" className="size-5 shrink-0" />{entry.title}
+                  <ul className="space-y-1">{groupedEntries.map((entry) => {
+                    const isSelected = entry.id === selectedEntry?.id;
+                    return <li key={entry.id}>
+                      <Link
+                        href={`/handbook/${encodeURIComponent(entry.id)}`}
+                        aria-current={isSelected ? "page" : undefined}
+                        className={`block w-full rounded-md px-3 py-2 text-sm leading-5 font-normal text-foreground underline-offset-4 hover:text-[#3555b0] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${isSelected ? "font-semibold text-[#3555b0] underline decoration-2" : ""}`}
+                      >
+                        {entry.title}
                       </Link>
-                    </Button>
-                  </li>)}</ul>
+                    </li>;
+                  })}</ul>
                 </div>)}
               </nav>
             </aside>
