@@ -1,12 +1,16 @@
+import type { SafeAIError } from "@/lib/ai-errors";
+import { getPublicAIError } from "@/lib/ai-errors";
+
 export type AnswerStreamEvent<TDraft, TFinal> =
   | { type: "draft"; value: TDraft }
   | { type: "reset" }
   | { type: "final"; value: TFinal }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string; aiError?: SafeAIError };
 
 type StreamAttempt<TOutput> = {
   partialOutputStream: AsyncIterable<unknown>;
   output: PromiseLike<TOutput>;
+  getOriginalError?: () => unknown;
 };
 
 type MaybePromise<T> = T | PromiseLike<T>;
@@ -79,7 +83,7 @@ export function createAnswerStreamResponse<TOutput, TDraft, TFinal>({
   timeoutMessage?: string;
   getDraftValue: (partial: unknown) => TDraft | null;
   resolveFinal: (output: TOutput) => Promise<TFinal>;
-  onFailure: () => Promise<void>;
+  onFailure: (error?: unknown) => Promise<void>;
   errorMessage: string;
 }) {
   const encoder = new TextEncoder();
@@ -144,19 +148,26 @@ export function createAnswerStreamResponse<TOutput, TDraft, TFinal>({
 
       async function runOperation() {
         let output: TOutput;
+        let currentAttempt: StreamAttempt<TOutput> | undefined;
         try {
-          output = await runAttempt(await createAttempt(abortController.signal));
+          currentAttempt = await createAttempt(abortController.signal);
+          output = await runAttempt(currentAttempt);
         } catch (error) {
-          const fallbackAttempt = !hasTimedOut && !signal?.aborted && shouldFallback?.(error)
+          const attemptError = currentAttempt?.getOriginalError?.() ?? error;
+          const fallbackAttempt = !hasTimedOut && !signal?.aborted && shouldFallback?.(attemptError)
             ? await createFallbackAttempt?.(abortController.signal)
             : null;
-          if (!fallbackAttempt) throw error;
+          if (!fallbackAttempt) throw attemptError;
           if (hasDraft) {
             write({ type: "reset" });
             hasDraft = false;
             previousDraft = null;
           }
-          output = await runAttempt(fallbackAttempt);
+          try {
+            output = await runAttempt(fallbackAttempt);
+          } catch (fallbackError) {
+            throw fallbackAttempt.getOriginalError?.() ?? fallbackError;
+          }
         }
         if (isCanceled || hasTimedOut || signal?.aborted) return;
         hasStartedFinalization = true;
@@ -181,14 +192,21 @@ export function createAnswerStreamResponse<TOutput, TDraft, TFinal>({
           } else {
             await operation;
           }
-        } catch {
+        } catch (error) {
           if (isCanceled || (signal?.aborted && !hasTimedOut)) return;
           if (hasDraft) write({ type: "reset" });
-          write({ type: "error", message: hasTimedOut ? timeoutMessage ?? "This is taking longer than expected. Please try again or ask the front desk team." : errorMessage });
+          const aiError = hasTimedOut
+            ? { category: "timeout" as const, message: timeoutMessage ?? "This is taking longer than expected. Please try again or ask the front desk team." }
+            : getPublicAIError(error);
+          write({
+            type: "error",
+            message: hasTimedOut ? timeoutMessage ?? "This is taking longer than expected. Please try again or ask the front desk team." : aiError.category === "unknown" ? errorMessage : aiError.message,
+            aiError,
+          });
           if (hasTimedOut && !hasStartedFinalization) {
-            void Promise.resolve().then(onFailure).catch(() => undefined);
+            void Promise.resolve().then(() => onFailure(error)).catch(() => undefined);
           } else if (!hasTimedOut) {
-            await onFailure().catch(() => undefined);
+            await onFailure(error).catch(() => undefined);
           }
         } finally {
           if (timeoutId) clearTimeout(timeoutId);

@@ -101,7 +101,7 @@ describe("answer streaming", () => {
     const events = [];
     for await (const event of parseAnswerStream<string, Final>(response.body!)) events.push(event);
     expect(events.map((event) => event.type)).toEqual(["draft", "reset", "error"]);
-    expect(events.at(-1)).toEqual({ type: "error", message: "Please ask the front desk team." });
+    expect(events.at(-1)).toMatchObject({ type: "error", message: "Please ask the front desk team.", aiError: { category: "unknown" } });
     expect(onFailure).toHaveBeenCalledOnce();
   });
 
@@ -140,6 +140,28 @@ describe("answer streaming", () => {
     expect(createFallbackAttempt).toHaveBeenCalledOnce();
   });
 
+  it("uses the original provider error when the SDK output promise wraps it", async () => {
+    const originalError = { name: "StreamProviderError", statusCode: 503, code: "UNAVAILABLE", message: "This model is currently experiencing high demand. Please try again later." };
+    const wrappedError = Object.assign(new Error("No output was generated."), { name: "NoOutputGeneratedError" });
+    async function* failedPartials() { throw wrappedError; }
+    async function* fallbackPartials() { yield { answer: "The verified answer.", sourceIds: ["hours"], needsStaff: false }; }
+    const fallback = vi.fn(() => createAttempt(fallbackPartials(), Promise.resolve({ answer: "The verified answer.", sourceIds: ["hours"], needsStaff: false })));
+    const response = createAnswerStreamResponse<Output, string, Final>({
+      createAttempt: () => ({ ...createAttempt(failedPartials(), Promise.reject(wrappedError)), getOriginalError: () => originalError }),
+      createFallbackAttempt: fallback,
+      shouldFallback: (error) => (error as { statusCode?: number }).statusCode === 503,
+      getDraftValue: (partial) => (partial as { answer?: string }).answer ?? null,
+      resolveFinal: async (output) => ({ answer: output.answer, status: "answered" }),
+      onFailure: async () => undefined,
+      errorMessage: "Unable to answer.",
+    });
+
+    const events = [];
+    for await (const event of parseAnswerStream<string, Final>(response.body!)) events.push(event);
+    expect(events.at(-1)).toEqual({ type: "final", value: { answer: "The verified answer.", status: "answered" } });
+    expect(fallback).toHaveBeenCalledOnce();
+  });
+
   it("resets and errors by the deadline even when the iterator ignores abort and failure logging stalls", async () => {
     let releasePartialStream: (() => void) | undefined;
     const finishPartialStream = new Promise<void>((resolve) => {
@@ -165,9 +187,10 @@ describe("answer streaming", () => {
     const events = [];
     for await (const event of parseAnswerStream<string, Final>(response.body!)) events.push(event);
     expect(events.map((event) => event.type)).toEqual(["draft", "reset", "error"]);
-    expect(events.at(-1)).toEqual({
+    expect(events.at(-1)).toMatchObject({
       type: "error",
       message: "This is taking longer than expected. Please try again or ask the front desk team.",
+      aiError: { category: "timeout" },
     });
     releasePartialStream?.();
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -249,7 +272,7 @@ describe("answer streaming", () => {
 
     const events = [];
     for await (const event of parseAnswerStream<string, Final>(response.body!)) events.push(event);
-    expect(events).toEqual([{ type: "error", message: "Unable to answer." }]);
+    expect(events).toMatchObject([{ type: "error", message: "Unable to answer.", aiError: { category: "unknown" } }]);
     expect(createFallbackAttempt).not.toHaveBeenCalled();
   });
 });

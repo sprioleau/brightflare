@@ -344,9 +344,14 @@ export default function AdminConsole() {
     setRecommendationError("")
     try {
       const response = await fetch("/api/admin/recommendations", { cache: "no-store" })
-      if (!response.ok) throw new Error("Recommendations could not be loaded.")
-      const result = (await response.json()) as { recommendations: Recommendation[] }
+      const result = (await response.json()) as {
+        recommendations?: Recommendation[]
+        generationError?: { category?: string; message?: string }
+        error?: string
+      }
+      if (!response.ok) throw new Error(result.error || "Recommendations could not be loaded.")
       setRecommendations(result.recommendations ?? [])
+      setRecommendationError(result.generationError?.message ?? "")
     } catch (error) {
       setRecommendationError(error instanceof Error ? error.message : "Recommendations could not be loaded.")
     } finally {

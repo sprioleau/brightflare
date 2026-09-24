@@ -87,6 +87,7 @@ const recommendationPayload = {
 }
 
 let dashboardPayload: object = adminPayload
+let recommendationsResponse: object = recommendationPayload
 
 afterEach(() => {
   cleanup()
@@ -98,6 +99,7 @@ describe("AdminConsole", () => {
   beforeEach(() => {
     routerMocks.setPathname("/admin/dashboard");
     dashboardPayload = adminPayload
+    recommendationsResponse = recommendationPayload
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input) === "/api/auth") {
         return Response.json({ role: "admin" })
@@ -109,7 +111,7 @@ describe("AdminConsole", () => {
         return Response.json({ success: true })
       }
       if (String(input) === "/api/admin/recommendations") {
-        return Response.json(recommendationPayload)
+        return Response.json(recommendationsResponse)
       }
       if (String(input) === "/api/admin/announcement") {
         if (init?.method === "POST") return Response.json({ ok: true })
@@ -259,6 +261,24 @@ describe("AdminConsole", () => {
     fireEvent.click(screen.getByRole("button", { name: "All" }))
     fireEvent.change(screen.getByLabelText("Search recommendations"), { target: { value: "winter break" } })
     expect(screen.getByText("No recommendations match these filters.")).toBeInTheDocument()
+  })
+
+  it("shows a safe generation failure while keeping saved recommendations actionable", async () => {
+    recommendationsResponse = {
+      ...recommendationPayload,
+      generationError: {
+        category: "capacity",
+        message: "Saved recommendations are available, but new suggestions could not be generated. Try again shortly.",
+      },
+    }
+
+    render(<AdminConsole />)
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Admin navigation" })).getByRole("link", { name: /Recommendations/ }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Saved recommendations are available, but new suggestions could not be generated. Try again shortly.")
+    expect(screen.getByRole("heading", { name: "Is the center open on Labor Day?" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Edit" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Dismiss" })).toBeEnabled()
   })
 
   it("opens Add an answer and closes the editor with its icon button", async () => {

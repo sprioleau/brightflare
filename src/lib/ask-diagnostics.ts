@@ -1,3 +1,5 @@
+import { classifyAIError } from "@/lib/ai-errors";
+
 type AskAttempt = {
   requestId: string;
   requestElapsedMs: number;
@@ -8,31 +10,13 @@ type AskAttempt = {
   signal?: AbortSignal;
 };
 
-function classifyAskError(error: unknown): { outcome: "timeout" | "cancel" | "capacity" | "auth" | "other"; statusCode?: number } {
-  const pending: unknown[] = [error];
-  const visited = new Set<unknown>();
-  let inspected = 0;
-  let statusCode: number | undefined;
-  let code = "";
-  let isTimeout = false;
-  while (pending.length > 0 && inspected < 20) {
-    const current = pending.shift();
-    if (!current || typeof current !== "object" || visited.has(current)) continue;
-    visited.add(current);
-    inspected += 1;
-    const record = current as Record<string, unknown>;
-    if (current instanceof Error && current.name === "TimeoutError") isTimeout = true;
-    const rawStatus = record.statusCode ?? record.status;
-    if (statusCode === undefined && typeof rawStatus === "number" && rawStatus >= 100 && rawStatus <= 599) statusCode = rawStatus;
-    if (typeof record.code === "string") code = record.code.toUpperCase().slice(0, 64);
-    pending.push(record.cause, record.lastError);
-    if (Array.isArray(record.errors)) pending.push(...record.errors.slice(0, 10));
-  }
-  if (isTimeout) return { outcome: "timeout", ...(statusCode ? { statusCode } : {}) };
-  if (["ABORT_ERR", "ABORTED", "CANCELLED", "CANCELED"].includes(code)) return { outcome: "cancel", ...(statusCode ? { statusCode } : {}) };
-  if (statusCode === 401 || statusCode === 403 || /AUTH|PERMISSION_DENIED/.test(code)) return { outcome: "auth", ...(statusCode ? { statusCode } : {}) };
-  if (statusCode === 429 || statusCode === 503 || /RESOURCE_EXHAUSTED|UNAVAILABLE|OVERLOAD/.test(code)) return { outcome: "capacity", ...(statusCode ? { statusCode } : {}) };
-  return { outcome: "other", ...(statusCode ? { statusCode } : {}) };
+function classifyAskError(error: unknown): { outcome: "timeout" | "cancel" | "capacity" | "auth" | "other"; diagnosis: ReturnType<typeof classifyAIError> } {
+  const diagnosis = classifyAIError(error);
+  const outcome = diagnosis.category === "timeout" ? "timeout"
+    : diagnosis.category === "cancelled" ? "cancel"
+      : diagnosis.category === "quota" || diagnosis.category === "capacity" ? "capacity"
+        : diagnosis.category === "auth" ? "auth" : "other";
+  return { outcome, diagnosis };
 }
 
 function emitAskDiagnostic(event: Record<string, string | number | undefined>) {
@@ -40,8 +24,9 @@ function emitAskDiagnostic(event: Record<string, string | number | undefined>) {
 }
 
 export function logAskFailure(requestId: string, error: unknown, elapsedMs: number) {
+  const diagnosis = classifyAIError(error);
   const classified = classifyAskError(error);
-  emitAskDiagnostic({ event: "request_failure", requestId, ...classified, elapsedMs });
+  emitAskDiagnostic({ event: "request_failure", requestId, outcome: classified.outcome, category: diagnosis.category, errorClass: diagnosis.errorClass, code: diagnosis.code, statusCode: diagnosis.statusCode, providerRequestId: diagnosis.requestId, retryAfterSeconds: diagnosis.retryAfterSeconds, providerMessage: diagnosis.providerMessage, elapsedMs });
 }
 
 export function logAskCheckpoint(requestId: string, checkpoint: "request_start" | "preflight_complete" | "finalization_start" | "finalization_end", elapsedMs: number) {
@@ -51,8 +36,11 @@ export function logAskCheckpoint(requestId: string, checkpoint: "request_start" 
 export function startAskAttempt(input: AskAttempt) {
   const startedAt = Date.now();
   let hasFinished = false;
-  const terminalTimer = setTimeout(() => finish("timeout"), Math.max(1, input.budgetMs));
-  function finish(outcome: "success" | "timeout" | "cancel" | "capacity" | "auth" | "other", statusCode?: number) {
+  const terminalTimer = setTimeout(() => {
+    const timeoutError = Object.assign(new Error("Attempt deadline reached."), { name: "TimeoutError" });
+    finish("timeout", classifyAIError(timeoutError));
+  }, Math.max(1, input.budgetMs));
+  function finish(outcome: "success" | "timeout" | "cancel" | "capacity" | "auth" | "other", diagnosis?: ReturnType<typeof classifyAIError>) {
     if (hasFinished) return;
     hasFinished = true;
     clearTimeout(terminalTimer);
@@ -64,13 +52,19 @@ export function startAskAttempt(input: AskAttempt) {
       modelId: input.modelId,
       provider: input.provider,
       outcome,
-      ...(statusCode ? { statusCode } : {}),
+      ...(diagnosis ? { category: diagnosis.category, errorClass: diagnosis.errorClass, statusCode: diagnosis.statusCode } : {}),
+      ...(diagnosis?.code ? { code: diagnosis.code } : {}),
+      ...(diagnosis?.requestId ? { providerRequestId: diagnosis.requestId } : {}),
+      ...(diagnosis?.retryAfterSeconds !== undefined ? { retryAfterSeconds: diagnosis.retryAfterSeconds } : {}),
+      ...(diagnosis?.providerMessage ? { providerMessage: diagnosis.providerMessage } : {}),
       elapsedMs: Date.now() - startedAt,
       budgetMs: input.budgetMs,
     });
   }
   function handleAbort() {
-    finish(Date.now() - startedAt >= input.budgetMs ? "timeout" : "cancel");
+    const isTimedOut = Date.now() - startedAt >= input.budgetMs;
+    const abortError = isTimedOut ? Object.assign(new Error("Attempt deadline reached."), { name: "TimeoutError" }) : Object.assign(new Error("Attempt cancelled."), { name: "AbortError" });
+    finish(isTimedOut ? "timeout" : "cancel", classifyAIError(abortError));
   }
   emitAskDiagnostic({
     event: "attempt_start",
@@ -87,7 +81,7 @@ export function startAskAttempt(input: AskAttempt) {
     succeed() { finish("success"); },
     fail(error: unknown) {
       const classified = classifyAskError(error);
-      finish(classified.outcome, classified.statusCode);
+      finish(classified.outcome, classified.diagnosis);
     },
   };
 }

@@ -13,6 +13,7 @@ import { findRelevantSources, type SearchableSource } from "@/lib/source-search"
 import { hasForbiddenTerm } from "@/lib/voice-guidance";
 import { conversationHistorySchema, sanitizeConversationHistory, serializeConversationHistory } from "@/lib/conversation-context";
 import { logAskCheckpoint, logAskFailure, startAskAttempt } from "@/lib/ask-diagnostics";
+import { getPublicAIError } from "@/lib/ai-errors";
 
 const questionSchema = z.object({
   question: z.string().trim().min(4).max(500),
@@ -61,6 +62,8 @@ async function generateGroundedOutput(
   async function runWithModel(selectedModel: typeof model) {
     const remainingMs = Math.max(1, timeoutMs - (Date.now() - startedAt));
     const shouldUsePrimaryBudget = selectedModel === model && fallbackModel !== null;
+    const attemptTimeoutMs = shouldUsePrimaryBudget ? Math.min(primaryModelBudgetMs, remainingMs) : remainingMs;
+    const diagnostic = startAskAttempt({ requestId, requestElapsedMs: Date.now() - requestStartedAt, attempt: selectedModel === model ? "primary" : "fallback", modelId: selectedModel.modelId, provider: selectedModel.provider, budgetMs: attemptTimeoutMs, signal });
     const agent = new ToolLoopAgent({
       model: selectedModel,
       output: Output.object({ schema: generatedAnswerSchema }),
@@ -86,10 +89,9 @@ async function generateGroundedOutput(
         }),
       },
     });
-    const attemptTimeoutMs = shouldUsePrimaryBudget ? Math.min(primaryModelBudgetMs, remainingMs) : remainingMs;
-    const diagnostic = startAskAttempt({ requestId, requestElapsedMs: Date.now() - requestStartedAt, attempt: selectedModel === model ? "primary" : "fallback", modelId: selectedModel.modelId, provider: selectedModel.provider, budgetMs: attemptTimeoutMs, signal });
     try {
-      const { output } = await agent.generate({ prompt, abortSignal: signal, timeout: { totalMs: attemptTimeoutMs, stepMs: attemptTimeoutMs } });
+      const options = { prompt, abortSignal: signal, timeout: { totalMs: attemptTimeoutMs, stepMs: attemptTimeoutMs }, onError: ({ error }: { error: unknown }) => { diagnostic.fail(error); return "The AI provider request failed."; } };
+      const { output } = await agent.generate(options);
       diagnostic.succeed();
       return output;
     } catch (error) {
@@ -128,7 +130,7 @@ function createGroundedAnswerStream({
   forbiddenTerms: string[];
   isDraftSuppressed: boolean;
   resolveFinal: (output: z.infer<typeof generatedAnswerSchema>) => Promise<FinalAnswer>;
-  onFailure: () => Promise<void>;
+  onFailure: (error?: unknown) => Promise<void>;
   abortSignal: AbortSignal;
   timeoutMs: number;
   requestId: string;
@@ -141,6 +143,8 @@ function createGroundedAnswerStream({
     const remainingMs = Math.max(1, timeoutMs - (Date.now() - startedAt));
     const shouldUsePrimaryBudget = attemptCount === 0 && fallbackModel !== null;
     attemptCount += 1;
+    const attemptTimeoutMs = shouldUsePrimaryBudget ? Math.min(primaryModelBudgetMs, remainingMs) : remainingMs;
+    const diagnostic = startAskAttempt({ requestId, requestElapsedMs: Date.now() - requestStartedAt, attempt: selectedModel === model ? "primary" : "fallback", modelId: selectedModel.modelId, provider: selectedModel.provider, budgetMs: attemptTimeoutMs, signal });
     const agent = new ToolLoopAgent({
       model: selectedModel,
       output: Output.object({ schema: generatedAnswerSchema }),
@@ -166,15 +170,29 @@ function createGroundedAnswerStream({
         }),
       },
     });
-    const attemptTimeoutMs = shouldUsePrimaryBudget ? Math.min(primaryModelBudgetMs, remainingMs) : remainingMs;
-    const diagnostic = startAskAttempt({ requestId, requestElapsedMs: Date.now() - requestStartedAt, attempt: selectedModel === model ? "primary" : "fallback", modelId: selectedModel.modelId, provider: selectedModel.provider, budgetMs: attemptTimeoutMs, signal });
-    return Promise.resolve(agent.stream({ prompt, abortSignal: signal, timeout: { totalMs: attemptTimeoutMs, stepMs: attemptTimeoutMs } })).then((result) => {
-      const output = Promise.resolve(result.output).then((value) => { diagnostic.succeed(); return value; }, (error: unknown) => { diagnostic.fail(error); throw error; });
+    const options = { prompt, abortSignal: signal, timeout: { totalMs: attemptTimeoutMs, stepMs: attemptTimeoutMs }, onError: ({ error }: { error: unknown }) => { diagnostic.fail(error); return "The AI provider request failed."; } };
+    return Promise.resolve(agent.stream(options)).then((result) => {
+      let originalError: unknown;
+      const fullStreamObservation = (async () => {
+        try {
+          for await (const part of result.fullStream) {
+            if (part.type === "error") originalError = part.error;
+          }
+        } catch (error) {
+          originalError ??= error;
+        }
+      })();
+      const output = Promise.resolve(result.output).then((value) => { diagnostic.succeed(); return value; }, async (error: unknown) => {
+        await fullStreamObservation;
+        const failure = originalError ?? error;
+        diagnostic.fail(failure);
+        throw failure;
+      });
       async function* observePartials() {
         try { for await (const partial of result.partialOutputStream) yield partial; }
-        catch (error) { diagnostic.fail(error); throw error; }
+        catch (error) { await fullStreamObservation; const failure = originalError ?? error; diagnostic.fail(failure); throw failure; }
       }
-      return { output, partialOutputStream: observePartials() };
+      return { output, partialOutputStream: observePartials(), getOriginalError: () => originalError };
     }, (error: unknown) => { diagnostic.fail(error); throw error; });
   }
 
@@ -282,7 +300,8 @@ async function handleAsk(request: NextRequest, deadline: ReturnType<typeof creat
             });
             return { ...answer, suggestedQuestions: [] };
           },
-          onFailure: async () => {
+    onFailure: async (error) => {
+      if (error) logAskFailure(requestId, error, Date.now() - requestStartedAt);
             await client.mutation(api.brightflare.recordPrivateQuestionEvent, {
               secret,
               centerSlug: "little-lantern",
@@ -389,7 +408,8 @@ async function handleAsk(request: NextRequest, deadline: ReturnType<typeof creat
                 .map((entry) => entry.title),
             };
           },
-          onFailure: async () => {
+          onFailure: async (error) => {
+            if (error) logAskFailure(requestId, error, Date.now() - requestStartedAt);
             const fallbackTitle = "Question awaiting staff review";
             const sessionKey = createHash("sha256").update(`${secret}:${sessionId}`).digest("hex").slice(0, 64);
             await client.mutation(api.brightflare.recordQuestion, {
@@ -474,7 +494,8 @@ async function handleAsk(request: NextRequest, deadline: ReturnType<typeof creat
   } catch (error) {
     if (deadline.signal.aborted) return Response.json({ error: askTimeoutMessage }, { status: 503 });
     logAskFailure(requestId, error, Date.now() - requestStartedAt);
-    return Response.json({ error: "We could not check the center records just now. Please ask the front desk team." }, { status: 503 });
+    const aiError = getPublicAIError(error);
+    return Response.json({ error: aiError.message, aiError }, { status: 503 });
   }
 }
 

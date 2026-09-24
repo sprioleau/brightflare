@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { isStepCount, Output, ToolLoopAgent, tool } from "ai";
 import { NextRequest } from "next/server";
 import { z } from "zod";
@@ -6,6 +7,7 @@ import { getGeminiModel, getGeminiOverloadFallbackModel, isGeminiOverloaded } fr
 import { getConvexServerClient, getConvexServerSecret } from "@/lib/convex-server";
 import { getSessionRole, isSameOrigin } from "@/lib/session";
 import { createAnswerStreamResponse } from "@/lib/answer-stream";
+import { getPublicAIError, logAIErrorDiagnostic } from "@/lib/ai-errors";
 
 const inputSchema = z.object({
   mode: z.enum(["title", "seasonal", "knowledge"]),
@@ -16,6 +18,7 @@ const inputSchema = z.object({
 const outputSchema = z.object({ suggestions: z.array(z.string().trim().min(4).max(500)).min(1).max(4) });
 
 export async function POST(request: NextRequest) {
+  const requestId = randomUUID();
   if (getSessionRole(request) !== "admin") {
     return Response.json({ error: "Staff sign-in required." }, { status: 401 });
   }
@@ -124,8 +127,24 @@ export async function POST(request: NextRequest) {
       ? `Use inspectHandbook. Suggest two or three plain-language FAQ titles of at most 65 characters for this staff draft: ${JSON.stringify(parsed.data.text)}. Preserve its meaning.`
       : `Use inspectHandbookEntry for the investigated topic, inspectHandbook for broader context, inspectRecentPublicQuestions for recent family wording, and inspectQuestionTrends. Topic ID: ${parsed.data.topicId || "none"}. Staff is investigating: ${JSON.stringify(parsed.data.text)}. Suggest a short answer draft only when directly supported by a current approved source. Otherwise, suggest the exact policy detail staff needs to confirm before publishing.`;
   if (request.headers.get("accept")?.includes("application/x-ndjson")) {
-    function createAttempt(selectedModel: NonNullable<typeof model>, abortSignal: AbortSignal) {
-      return new ToolLoopAgent({ model: selectedModel, ...agentOptions }).stream({ prompt, abortSignal, timeout: { totalMs: 55_000, stepMs: 45_000 } });
+    async function createAttempt(selectedModel: NonNullable<typeof model>, abortSignal: AbortSignal) {
+      const streamOptions = { prompt, abortSignal, timeout: { totalMs: 55_000, stepMs: 45_000 }, onError: () => "The AI provider request failed." };
+      const result = await new ToolLoopAgent({ model: selectedModel, ...agentOptions }).stream(streamOptions);
+      let originalError: unknown;
+      const fullStreamObservation = (async () => {
+        try {
+          for await (const part of result.fullStream) if (part.type === "error") originalError = part.error;
+        } catch (error) { originalError ??= error; }
+      })();
+      const output = Promise.resolve(result.output).then((value) => value, async (error: unknown) => {
+        await fullStreamObservation;
+        throw originalError ?? error;
+      });
+      async function* observePartials() {
+        try { for await (const partial of result.partialOutputStream) yield partial; }
+        catch (error) { await fullStreamObservation; throw originalError ?? error; }
+      }
+      return { output, partialOutputStream: observePartials(), getOriginalError: () => originalError };
     }
     const fallbackModel = getGeminiOverloadFallbackModel();
     return createAnswerStreamResponse<z.infer<typeof outputSchema>, string[], z.infer<typeof outputSchema>>({
@@ -143,23 +162,30 @@ export async function POST(request: NextRequest) {
         return suggestions.length ? suggestions : null;
       },
       resolveFinal: async (output) => output,
-      onFailure: async () => undefined,
+      onFailure: async (error) => { if (error) logAIErrorDiagnostic("admin_assist", requestId, error); },
       errorMessage: "The assistant could not prepare a suggestion. Please try again.",
     });
   }
   try {
-    const { output } = await new ToolLoopAgent({ model, ...agentOptions }).generate({ prompt });
+    const generationOptions = { prompt, onError: () => "The AI provider request failed." };
+    const { output } = await new ToolLoopAgent({ model, ...agentOptions }).generate(generationOptions);
     return Response.json(output);
   } catch (error) {
     const fallbackModel = getGeminiOverloadFallbackModel();
     if (fallbackModel && isGeminiOverloaded(error)) {
+      logAIErrorDiagnostic("admin_assist", requestId, error);
       try {
-        const { output } = await new ToolLoopAgent({ model: fallbackModel, ...agentOptions }).generate({ prompt });
+        const fallbackOptions = { prompt, onError: () => "The AI provider request failed." };
+        const { output } = await new ToolLoopAgent({ model: fallbackModel, ...agentOptions }).generate(fallbackOptions);
         return Response.json(output);
-      } catch {
-        return Response.json({ error: "The assistant could not prepare a suggestion. Please try again." }, { status: 503 });
+      } catch (error) {
+        logAIErrorDiagnostic("admin_assist", requestId, error);
+        const aiError = getPublicAIError(error);
+        return Response.json({ error: aiError.message, aiError }, { status: 503 });
       }
     }
-    return Response.json({ error: "The assistant could not prepare a suggestion. Please try again." }, { status: 503 });
+    logAIErrorDiagnostic("admin_assist", requestId, error);
+    const aiError = getPublicAIError(error);
+    return Response.json({ error: aiError.message, aiError }, { status: 503 });
   }
 }

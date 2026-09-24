@@ -25,7 +25,7 @@ describe("ask diagnostics", () => {
     expect(records[0]).toMatchObject({ event: "attempt_start", requestId: "request-uuid", modelId: "gemini-test", provider: "google.generative-ai", budgetMs: 4_000 });
     expect(records[1]).toMatchObject({ event: "attempt_end", outcome: "capacity", statusCode: 429 });
     expect(JSON.stringify(records)).not.toContain(secretMessage);
-    expect(Object.keys(records[1]).sort()).toEqual(["attempt", "budgetMs", "elapsedMs", "event", "modelId", "outcome", "provider", "requestId", "statusCode"].sort());
+    expect(Object.keys(records[1]).sort()).toEqual(["attempt", "budgetMs", "category", "elapsedMs", "errorClass", "event", "modelId", "outcome", "provider", "requestId", "statusCode"].sort());
   });
 
   it("records a hanging attempt as timeout when its budget expires", () => {

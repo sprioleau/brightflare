@@ -31,10 +31,16 @@
 
 ## Release verification
 
-- Current full Vitest checkpoint: **18 files, 80 tests passed**. TypeScript, `git diff --check`, and the production build passed.
+- Current full Vitest checkpoint: **20 files, 88 tests passed**. TypeScript, `git diff --check`, and the production build passed.
 - Browser layout passed at **1024×768**, **768×1024**, and **390×844**. All eight closed FAQs and the composer fit both iPad orientations. Expanded answers remain scrollable in the FAQ region, retain their card surface, and leave chat unchanged. Phone announcements display their full message.
 - Refreshed screenshots are in `public/screenshots/`, with absolute production URLs in the README.
 - Live checks found both application and provider limits: a default-thinking Flash-Lite probe used a redundant source-tool roundtrip at 6.7 seconds; a direct-source attempt still exceeded eight seconds. The final minimal-thinking Gemini 3.5 Flash probe returned a real 503 `UNAVAILABLE` in about 2.5 seconds, before any text. The Flock reference independently documents minimal thinking as its fix for Flash-Lite latency. The revised fallback/deadline behavior is regression-tested; a successful real answer under the eight-second cap is not claimed. The production build also passed a browser check confirming that a private family question and Clear chat preserve an authenticated staff session. Deployment verification follows publication.
+
+## Provider diagnosis and error context
+
+- A production request at 2026-09-24 19:01 UTC identified the actual runtime models: direct Google Gemini 3.5 Flash-Lite reached its four-second attempt budget, then Gemini 3.5 Flash returned HTTP 503 UNAVAILABLE after 291 ms. The original provider message reported high demand. This is capacity evidence, not a quota diagnosis.
+- The SDK partial-output stream can omit provider error chunks and later reject with a generic NoOutputGeneratedError. Original full-stream errors are now preserved for fallback decisions and safe diagnostics. Default raw SDK error logging is disabled; detailed server diagnostics redact payloads and credentials. Public family/staff errors use fixed category messages. Saved staff recommendations remain reviewable when new generation fails.
+- One authorized isolated Gateway check using existing OIDC and fictional source text returned a correct structured answer from openai/gpt-4.1-mini in 1.854 seconds. This was a small independent check, not the full app workflow; app provider configuration was unchanged.
 
 ## Earlier evidence and data scope
 
