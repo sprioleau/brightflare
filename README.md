@@ -14,11 +14,11 @@
 
 ### Family desk
 
-![brightflare family desk on desktop](https://brightflare.sprioleau.dev/screenshots/parent-desktop.png?v=20260924-final)
+![brightflare family desk on desktop](https://brightflare.sprioleau.dev/screenshots/parent-desktop.png?v=20260925-announcement)
 
 <p align="left">
-  <img src="https://brightflare.sprioleau.dev/screenshots/parent-mobile.png?v=20260924-final" alt="brightflare family desk on a phone with responsive menu closed" width="280" />
-  <img src="https://brightflare.sprioleau.dev/screenshots/parent-mobile-menu.png?v=20260924-final" alt="brightflare family desk on a phone with responsive navigation open" width="280" />
+  <img src="https://brightflare.sprioleau.dev/screenshots/parent-mobile.png?v=20260925-announcement" alt="brightflare family desk on a phone with responsive menu closed" width="280" />
+  <img src="https://brightflare.sprioleau.dev/screenshots/parent-mobile-menu.png?v=20260925-announcement" alt="brightflare family desk on a phone with responsive navigation open" width="280" />
 </p>
 
 ### Staff workspace
