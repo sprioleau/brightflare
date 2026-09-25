@@ -249,7 +249,7 @@ export default function AdminConsole() {
   const [announcementError, setAnnouncementError] = useState("")
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [pin, setPin] = useState("")
+  const [pin, setPin] = useState("2468")
   const [authError, setAuthError] = useState("")
   const [isLoadingOlderQuestions, setIsLoadingOlderQuestions] = useState(false)
   const [olderQuestionsError, setOlderQuestionsError] = useState("")
@@ -583,7 +583,6 @@ export default function AdminConsole() {
       if (!response.ok) throw new Error(response.status === 401 ? "That PIN wasn’t recognized. Try again." : "Could not sign in. Please try again.")
       const result = (await response.json()) as { role?: "family" | "admin" | null }
       if (result.role !== "admin") throw new Error("This PIN does not have staff access.")
-      setPin("")
       setIsAuthenticated(true)
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "Could not sign in. Please try again.")
@@ -779,7 +778,7 @@ export default function AdminConsole() {
   }
 
   if (!isAuthenticated) {
-    return <AppShell section="admin"><main className="admin-workspace flex min-h-[65vh] items-center justify-center"><Card className="w-full max-w-md"><CardHeader><div className="mb-3"><Logo size={36} /></div><CardTitle className="type-page-title">Staff access</CardTitle><CardDescription>Sign in to review family questions and keep your center’s answers current.</CardDescription></CardHeader><CardContent><form onSubmit={signIn} className="flex flex-col gap-4">{authError && <p className="type-supporting text-destructive" role="alert">{authError}</p>}<label className="flex flex-col gap-2 type-supporting font-semibold" htmlFor="admin-pin">Center PIN<Input id="admin-pin" autoComplete="current-password" inputMode="numeric" type="password" value={pin} onChange={(event) => setPin(event.target.value)} required /></label><Button className="w-full" disabled={!pin.trim()}>Continue</Button></form></CardContent></Card></main></AppShell>
+    return <AppShell section="admin"><main className="admin-workspace flex min-h-[65vh] items-center justify-center"><Card className="w-full max-w-md"><CardHeader><div className="mb-3"><Logo size={36} /></div><CardTitle className="type-page-title">Staff access</CardTitle><CardDescription>Sign in to review family questions and keep your center’s answers current.</CardDescription></CardHeader><CardContent><form onSubmit={signIn} className="flex flex-col gap-4">{authError && <p className="type-supporting text-destructive" role="alert">{authError}</p>}<label className="flex flex-col gap-2 type-supporting font-semibold" htmlFor="admin-pin">Center PIN<Input id="admin-pin" autoComplete="off" inputMode="numeric" type="text" value={pin} onChange={(event) => setPin(event.target.value)} required /></label><p className="type-metadata -mt-2">Demo PIN: 2468. It’s intentionally visible and prefilled so reviewers can press Enter to continue.</p><Button type="submit" className="w-full" disabled={!pin.trim()}>Continue</Button></form></CardContent></Card></main></AppShell>
   }
 
   return (

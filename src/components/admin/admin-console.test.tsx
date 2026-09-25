@@ -88,6 +88,7 @@ const recommendationPayload = {
 
 let dashboardPayload: object = adminPayload
 let recommendationsResponse: object = recommendationPayload
+let authRole: "admin" | "family" | null = "admin"
 
 afterEach(() => {
   cleanup()
@@ -100,9 +101,10 @@ describe("AdminConsole", () => {
     routerMocks.setPathname("/admin/dashboard");
     dashboardPayload = adminPayload
     recommendationsResponse = recommendationPayload
+    authRole = "admin"
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input) === "/api/auth") {
-        return Response.json({ role: "admin" })
+        return Response.json({ role: init?.method === "POST" ? "admin" : authRole })
       }
       if (String(input) === "/api/admin") {
         return Response.json(dashboardPayload)
@@ -125,6 +127,28 @@ describe("AdminConsole", () => {
       }
       return Response.json({ suggestions: [] })
     }))
+  })
+
+  it("prefills the visible demo PIN and submits it through the sign-in form", async () => {
+    authRole = null
+    render(<AdminConsole />)
+
+    const pinInput = await screen.findByLabelText("Center PIN")
+    expect(pinInput).toHaveValue("2468")
+    expect(pinInput).toHaveAttribute("type", "text")
+    expect(screen.getByText("Demo PIN: 2468. It’s intentionally visible and prefilled so reviewers can press Enter to continue.")).toBeInTheDocument()
+
+    const signInForm = pinInput.closest("form")
+    expect(signInForm).not.toBeNull()
+    expect(signInForm?.querySelector('button[type="submit"]')).not.toBeNull()
+    if (!signInForm) throw new Error("The staff PIN form is missing.")
+    fireEvent.submit(signInForm)
+
+    await waitFor(() => {
+      const authRequest = vi.mocked(fetch).mock.calls.find(([url, init]) => String(url) === "/api/auth" && init?.method === "POST")
+      expect(authRequest).toBeDefined()
+      expect(JSON.parse(String(authRequest?.[1]?.body))).toEqual({ role: "admin", pin: "2468" })
+    })
   })
 
   it("uses individual admin links and follows browser back and forward paths", async () => {

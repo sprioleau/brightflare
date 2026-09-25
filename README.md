@@ -52,7 +52,7 @@ I drew visual inspiration from my earlier projects [teeny.fun](https://teeny.fun
 
 Gemini inference uses free-tier accounts and may be rate-limited. OpenRouter fallback is implemented but remains inactive by default while a reliable model for both parent answers and staff assistance is being verified.
 
-- Staff workspace: open [Admin](https://brightflare.sprioleau.dev/admin) and enter the demo center PIN **2468**.
+- Staff workspace: open [Admin](https://brightflare.sprioleau.dev/admin). The demo center PIN **2468** is visible and prefilled; press Enter or Continue.
 - Family verification API demo: PIN **1357** is configured for the fictional child **Mia Carter**. The shared family desk has no PIN entry screen; parents can browse FAQs and ask general questions without signing in. Child-specific questions at the shared desk are directed to staff.
 
 Demo credentials are not a production authentication scheme. Credentials are configured outside this repository.
