@@ -10,8 +10,21 @@ const manrope = localFont({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://brightflare.sprioleau.dev"),
   title: "brightflare",
   description: "A childcare center front desk companion app that provides the answers parents need.",
+  openGraph: {
+    type: "website",
+    url: "https://brightflare.sprioleau.dev",
+    siteName: "brightflare",
+    title: "brightflare",
+    description: "A childcare center front desk companion app that provides the answers parents need.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "brightflare",
+    description: "A childcare center front desk companion app that provides the answers parents need.",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

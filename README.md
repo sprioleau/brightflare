@@ -2,6 +2,10 @@
   <img src="public/assets/brightflare-logo-full.svg" alt="brightflare" width="360" />
 </p>
 
+<p align="left">
+  <img src="public/assets/brightflare-social-card.png" alt="brightflare logo and a tablet showing the childcare family desk app" width="100%" />
+</p>
+
 **A calmer front desk for childcare families.** I designed brightflare for parents using the center’s shared iPad and staff maintaining trusted answers. At the front desk, the first screen keeps common questions in view without unnecessary scrolling; parents can open approved FAQs or ask something new, then clear the session for the next family. Staff see public question trends and gaps, improve approved guidance, and choose which answers to feature.
 
 **Try it:** [Family front desk](https://brightflare.sprioleau.dev/) · [Family handbook](https://brightflare.sprioleau.dev/handbook) · [Staff workspace](https://brightflare.sprioleau.dev/admin)
