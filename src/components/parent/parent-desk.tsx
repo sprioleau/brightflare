@@ -123,7 +123,6 @@ export default function ParentDesk() {
   const [isIdleWarningVisible, setIsIdleWarningVisible] = useState(false);
   const [isAnnouncementExpanded, setIsAnnouncementExpanded] = useState(false);
   const [isPrivateAnswer, setIsPrivateAnswer] = useState(false);
-  const [isAnnouncementDismissed, setIsAnnouncementDismissed] = useState(false);
   const [isIpadPreviewOpen, setIsIpadPreviewOpen] = useState(false);
   const [isIpadPreviewFrame, setIsIpadPreviewFrame] = useState(false);
   const [ipadPreviewScale, setIpadPreviewScale] = useState(1);
@@ -472,7 +471,7 @@ export default function ParentDesk() {
   return (
     <AppShell section="family" centerName={deskData?.center.name} centerHours={deskData?.center.hours} actions={!isIpadPreviewFrame ? <Button type="button" size="icon" variant="icon" aria-label="Preview iPad front desk" title="Preview iPad front desk" onClick={() => setIsIpadPreviewOpen(true)}><Monitor aria-hidden="true" className="size-4" /></Button> : null} className={styles.shellContent}>
       <main id="home" className={`parent-desk ${styles.desk}`}>
-        {deskData?.center.announcement && !isAnnouncementDismissed ? <NotificationBanner title={deskData.center.announcement.title.trim() || "Center announcement"} className={`${styles.announcement} ${isAnnouncementExpanded ? styles.announcementExpanded : ""}`} onDismiss={() => setIsAnnouncementDismissed(true)}>
+        {deskData?.center.announcement ? <NotificationBanner title={deskData.center.announcement.title.trim() || "Center announcement"} className={`${styles.announcement} notification-banner--center-announcement ${isAnnouncementExpanded ? styles.announcementExpanded : ""}`}>
           <p className={isAnnouncementExpanded ? "" : styles.announcementPreview}>{deskData.center.announcement.message}</p>
           {deskData.center.announcement.message.length > 120 ? <Button type="button" variant="link" size="sm" className={styles.readMore} aria-expanded={isAnnouncementExpanded} onClick={() => setIsAnnouncementExpanded((current) => !current)}>{isAnnouncementExpanded ? "Show less" : "Read more"}</Button> : null}
         </NotificationBanner> : null}

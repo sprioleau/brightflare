@@ -247,6 +247,7 @@ img { display: block; }
 .notification-banner__copy { min-width: 0; }
 .notification-banner__title { display: block; margin-bottom: .12rem; font-size: 14px; font-weight: 600; }
 .notification-banner--warning { background: #fff8eb; border-color: #e9bd7b; }
+.notification-banner--center-announcement { padding-block: .75rem; background: #fff0e3; border-color: #e99a54; }
 .notification-banner--error { background: #fff4f5; border-color: #e3bdc3; color: #9b3541; }
 .notification-banner--success .notification-banner__icon { color: #2c847c; }
 .notification-banner--warning .notification-banner__icon { color: #936317; }
