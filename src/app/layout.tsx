@@ -13,6 +13,9 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://brightflare.sprioleau.dev"),
   title: "brightflare",
   description: "A childcare center front desk companion app that provides the answers parents need.",
+  appleWebApp: {
+    title: "brightflare",
+  },
   openGraph: {
     type: "website",
     url: "https://brightflare.sprioleau.dev",
